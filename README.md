@@ -2,6 +2,8 @@
 
 A macOS menu bar app that displays Codex subscription usage.
 
+![Codex Meter showing the menu bar gauge and popover open on a normal desktop](assets/screenshots/hero.png)
+
 A fork of [claude-meter](https://github.com/anthropics/claude-meter) targeting OpenAI's Codex CLI. Same battery-indicator UX, different backend.
 
 ## Requirements

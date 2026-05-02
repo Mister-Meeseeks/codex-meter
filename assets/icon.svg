@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Claude Meter app icon — first pass, per docs/brand.md.
+  Codex Meter app icon — first pass, per docs/brand.md.
+
+  Inherits the claude-meter visual structure (terracotta squircle + cream
+  battery pill + deep-terracotta fill). The fork's distinguishing element
+  is a small hexagonal Codex watermark in the upper-right corner — the
+  same hex mark used as the in-app brand watermark on VesselGauge and
+  PacingArc.
 
   - Square 1024×1024 canvas, terracotta background.
   - Cream vertical pill, ~32% wide and ~70% tall, vertically centered.
-  - Lower 50% of the pill filled with deep terracotta, flat horizontal boundary
-    at the pill's vertical midpoint (y = 512, the canvas center).
-  - The squircle here uses a plain rounded rectangle (rx = 22% × 1024 = 225)
-    as a starting approximation. Final asset should re-cut the corner using
-    Apple's superellipse template before export to .icns.
+  - Lower 50% of the pill filled with deep terracotta, flat horizontal
+    boundary at the pill's vertical midpoint (y = 512).
+  - Upper-right corner: cream hexagonal outline, side length 70.
+  - The squircle uses rx = 22% × 1024 = 225 as a starting approximation.
+    Final asset should re-cut the corner using Apple's superellipse
+    template before export to .icns.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
@@ -25,4 +32,16 @@
 
   <!-- Deep terracotta fill, lower 50% of pill, clipped to pill shape -->
   <rect x="348" y="512" width="328" height="360" fill="#8A3F2C" clip-path="url(#pill)"/>
+
+  <!--
+    Hexagonal Codex watermark, upper-right corner. Pointy-top hex with
+    side length 70, centered at (832, 192). Vertices at 30° intervals
+    rotated so the top vertex sits at 12 o'clock.
+  -->
+  <polygon
+    points="832,122 893,157 893,227 832,262 771,227 771,157"
+    fill="none"
+    stroke="#F4E8DD"
+    stroke-width="14"
+    stroke-linejoin="round"/>
 </svg>

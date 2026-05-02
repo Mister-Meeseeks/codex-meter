@@ -1,44 +1,41 @@
-# claude-meter
+# codex-meter
 
-A macOS menu bar app that displays Claude subscription usage.
+A macOS menu bar app that displays Codex subscription usage.
 
-![Claude Meter showing the menu bar gauge and popover open on a normal desktop](assets/screenshots/hero.png)
+A fork of [claude-meter](https://github.com/anthropics/claude-meter) targeting OpenAI's Codex CLI. Same battery-indicator UX, different backend.
 
 ## Requirements
 
 - macOS 14 (Sonoma) or newer
 - Xcode 15+ (build) — the Xcode command-line tools alone are not enough; the asset compiler and SwiftUI previews ship with full Xcode
-- **Claude desktop installed and signed in.** claude-meter reads Claude desktop's cached OAuth token from the macOS Keychain — it does not run its own auth flow. The desktop app does **not** have to be running; it just has to have signed in at least once. Once that's done, claude-meter tracks all activity on your account, including everything you do in Claude Code or other CLI tools — Claude desktop is only used as the auth source.
+- **Codex CLI installed and signed in.** codex-meter reads the bearer token Codex CLI caches at `~/.codex/auth.json`. Codex CLI does not need to be running; it just has to have completed `codex login` at least once. After that, codex-meter polls the same `wham/usage` endpoint Codex CLI itself uses for `/status`.
 
-If you don't have it: <https://claude.ai/download>.
+If you don't have Codex CLI: <https://developers.openai.com/codex>.
 
 ## Quickstart
 
 ```sh
-git clone https://github.com/<your-fork>/claude-meter.git
-cd claude-meter
+git clone https://github.com/<your-fork>/codex-meter.git
+cd codex-meter
 ./build.sh
 ```
 
 `build.sh` runs `xcodebuild` (Release configuration, output pinned to `./build/` so it isn't lost in Xcode's hashed DerivedData) and then `open`s the app. Safe to re-run — incremental rebuilds are fast.
 
-**First launch:** macOS shows two Keychain dialogs in sequence so claude-meter can read Claude desktop's cached OAuth token. Each one asks for your login password. This is the cost of reading another app's keychain item — the two prompts correspond to two separate ACL authorizations on the underlying entry. Click `Always Allow` on both and you'll never see them again; even `Allow` works thanks to the persistent cache claude-meter writes after the first successful read.
-
-<p>
-  <img src="assets/screenshots/keychain-prompt-access-key.png" alt="macOS prompt: Claude Meter wants to access key 'Claude Safe Storage' in your keychain" width="420">
-  <img src="assets/screenshots/keychain-prompt-use-info.png" alt="macOS prompt: Claude Meter wants to use your confidential information stored in 'Claude Safe Storage' in your keychain" width="420">
-</p>
-
-Subsequent launches are silent.
+**First launch:** unlike claude-meter, there are no Keychain dialogs. Codex CLI stores its tokens in plaintext at `~/.codex/auth.json` (mode 0600), so codex-meter just reads the file. macOS may prompt for the usual notarization / unidentified-developer warning if the binary isn't signed.
 
 The app has `LSUIElement=true`, so no Dock icon appears — look for the vessel icon in the menu bar (top-right of the screen). Click it for the popover; ⌘, opens the settings panel.
+
+## Coexistence with claude-meter
+
+codex-meter ships a different bundle ID (`dev.codexmeter.app`) and a visually distinct AppIcon (terracotta vessel + hexagonal Codex watermark) so the two can coexist in the menu bar. If you use both Claude and Codex, install both — each tracks its own subscription.
 
 ## From Xcode
 
 If you'd rather build interactively:
 
 ```sh
-open ClaudeMeter/ClaudeMeter.xcodeproj
+open CodexMeter/CodexMeter.xcodeproj
 ```
 
 Then hit ⌘R.
@@ -46,15 +43,16 @@ Then hit ⌘R.
 ## Tests
 
 ```sh
-xcodebuild -project ClaudeMeter/ClaudeMeter.xcodeproj \
-           -scheme ClaudeMeter \
+xcodebuild -project CodexMeter/CodexMeter.xcodeproj \
+           -scheme CodexMeter \
            -destination 'platform=macOS' test
 ```
 
 ## Layout
 
-- `ClaudeMeter/` — Xcode project and app source
+- `CodexMeter/` — Xcode project and app source
 - `docs/` — architecture, metrics, UI, brand, API, auth, backlog
-- `assets/` — brand assets (canonical icon SVG) and `screenshots/` for README images
+- `assets/` — brand assets (canonical icon SVG), `fixtures/` for parser test data, `screenshots/` for README images
 - `tools/render-icon.swift` — re-renders the AppIcon set from the SVG spec
-- `tools/reset-keychain-cache.sh` — wipes the persistent Safe Storage cache to re-test the first-launch flow
+- `utils/extract-codex-token.sh` — prints the cached Codex CLI bearer token (for the `probe-codex-usage-api.sh` helper)
+- `utils/probe-codex-usage-api.sh` — fetches the live `wham/usage` endpoint and saves a fresh fixture

@@ -1,28 +1,31 @@
 # AGENTS.md
 
-A macOS menu bar app that displays Claude subscription usage like a battery indicator. This file lists the rules that apply to **every** code change. For deeper specifications, load the relevant doc from `docs/`.
+A macOS menu bar app that displays Codex subscription usage like a battery indicator. This file lists the rules that apply to **every** code change. For deeper specifications, load the relevant doc from `docs/`.
+
+A fork of [claude-meter](https://github.com/anthropics/claude-meter) targeting OpenAI's Codex CLI. Same battery-indicator UX, different backend.
 
 ## North star
 
-A user installs via Homebrew, launches once, and forever after has ambient awareness of their Claude usage. The app is invisible until they need it. If a user has to *think about* this app after install, the design failed.
+A user installs via Homebrew, launches once, and forever after has ambient awareness of their Codex usage. The app is invisible until they need it. If a user has to *think about* this app after install, the design failed.
 
 ## Hard constraints — non-negotiable
 
 - **macOS only, native.** SwiftUI + AppKit. No Electron, web views, Python.
 - **Single signed binary.** `.dmg` distributed via Homebrew cask + GitHub Releases. No installers.
-- **Zero config on first run.** Reads + decrypts Claude desktop's locally-cached OAuth token (Chromium Safe Storage scheme). No login UI, no settings to configure to start working. macOS will prompt once for Keychain access on first launch (system dialog, can't customize). See `docs/auth.md`.
-- **Hard dependency on Claude desktop.** claude-meter is a passive consumer of Claude desktop's auth state. The app must be installed and the user signed in. Token freshness is Claude desktop's job — it refreshes in the background and we just re-read the cached value.
-- **No telemetry, no analytics.** Only network call is to `api.anthropic.com`. Treat user data accordingly.
-- **Tiny footprint.** Idle RAM under 50MB. CPU under 0.1% idle. Slow polling cadence — 60s in all states. The `/api/oauth/usage` endpoint rate-limits aggressively, so polling harder while the popover is open just trips the limiter sooner.
+- **Zero config on first run.** Reads Codex CLI's locally-cached OAuth token from `~/.codex/auth.json` (plaintext, mode 0600). No login UI, no settings to configure to start working. No keychain prompt — unlike claude-meter, Codex CLI doesn't encrypt its tokens, so there's nothing to decrypt. See `docs/auth.md`.
+- **Hard dependency on Codex CLI.** codex-meter is a passive consumer of Codex CLI's auth state. The CLI must be installed and the user must have run `codex login`. Token freshness is Codex CLI's job — it refreshes in the background and we just re-read the cached value.
+- **Brittle endpoint, by design.** The `wham/usage` endpoint is **undocumented** — it's the same one Codex CLI itself polls for `/status`. OpenAI may move or change it without notice. Parser is forward-compatible (unknown fields ignored); failures degrade gracefully with appropriate user-facing messages. See `docs/api.md`.
+- **No telemetry, no analytics.** Only network call is to `chatgpt.com/backend-api/wham/usage`. Treat user data accordingly.
+- **Tiny footprint.** Idle RAM under 50MB. CPU under 0.1% idle. Slow polling cadence — 60s in all states. The endpoint rate-limits, so polling harder while the popover is open just trips the limiter sooner.
 - **Graceful degradation.** Network/API/auth failures show a clear error state — never a crash, never a misleading number.
 
 ## Tech stack
 
 - Swift 5.9+, SwiftUI with `MenuBarExtra` (macOS 14+)
-- `URLSession` for HTTP, Security.framework for Keychain, CommonCrypto for AES decryption. **No third-party dependencies** without explicit approval.
+- `URLSession` for HTTP. **No third-party dependencies** without explicit approval. (We don't link Security.framework / CommonCrypto in this fork — the auth path is a plain JSON file read.)
 - Swift structured concurrency (`async/await`, actors) — no GCD callbacks
 - Observation macros (`@Observable`) for UI state, not Combine
-- `os.Logger` with subsystem `dev.claudemeter` — no `print()`
+- `os.Logger` with subsystem `dev.codexmeter` — no `print()`
 - Build via Xcode project committed to repo
 
 Min macOS: 14.0 (Sonoma). Gives us `MenuBarExtra` and the `@Observable` macro for SwiftUI state.
@@ -39,7 +42,7 @@ Min macOS: 14.0 (Sonoma). Gives us `MenuBarExtra` and the `@Observable` macro fo
 
 ## Scope discipline
 
-This is a **battery indicator for Claude usage**. If a feature wouldn't fit on a battery icon, it doesn't belong here. Specifically out of scope, forever or until someone has a very good reason:
+This is a **battery indicator for Codex usage**. If a feature wouldn't fit on a battery icon, it doesn't belong here. Specifically out of scope, forever or until someone has a very good reason:
 
 - Per-task burn logging or session attribution
 - Coaching, advice, productivity tips, gamification
@@ -47,6 +50,7 @@ This is a **battery indicator for Claude usage**. If a feature wouldn't fit on a
 - Cloud sync, accounts, web dashboards
 - Windows/Linux ports
 - iOS companion
+- Multi-provider support — codex-meter is Codex-only. Claude users should run claude-meter alongside.
 
 For v1.x roadmap items (notifications, sparklines, auto-update), see `docs/backlog.md`.
 
@@ -55,7 +59,7 @@ For v1.x roadmap items (notifications, sparklines, auto-update), see `docs/backl
 **Ask before:**
 - Adding any dependency
 - Changing API contract assumptions (see `docs/api.md`)
-- Touching Keychain access or token decryption (see `docs/auth.md`)
+- Touching the auth file path or token-extraction logic (see `docs/auth.md`)
 - Touching code signing or notarization
 - Expanding beyond v1 scope (see `docs/backlog.md` for what's deferred)
 
@@ -71,7 +75,7 @@ For v1.x roadmap items (notifications, sparklines, auto-update), see `docs/backl
 |---|---|
 | Architecture, module layout, dependency rules | `docs/architecture.md` |
 | API endpoint, response shape, error matrix | `docs/api.md` |
-| Reading Claude desktop's cached OAuth token | `docs/auth.md` |
+| Reading Codex CLI's cached OAuth token | `docs/auth.md` |
 | Metric calculation, projections, EWMA | `docs/metrics.md` |
 | Menu bar gauge, popover, visual specs | `docs/ui.md` |
 | Colors, icon, README, marketing | `docs/brand.md` |

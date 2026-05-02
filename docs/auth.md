@@ -1,133 +1,101 @@
-# Auth: reading Claude desktop's locally-cached OAuth token
+# Auth: reading Codex CLI's locally-cached OAuth token
 
-claude-meter is a passive read-only consumer of Claude desktop's existing OAuth state. We don't run an OAuth flow, don't register a third-party client, and don't store our own tokens. On every poll we decrypt the token Claude desktop has already cached on disk and use it for one HTTP call to `/api/oauth/usage`.
+codex-meter is a passive read-only consumer of Codex CLI's existing OAuth state. We don't run an OAuth flow, don't register a third-party client, and don't store our own tokens. On every poll we read the bearer token Codex CLI has cached on disk and use it for one HTTP call to `wham/usage`.
 
-## Why this design
-
-We considered (and started building) a first-party OAuth flow with our own `client_id`, but Anthropic's policy as of early 2026 explicitly restricts subscription OAuth to Claude.ai and Claude Code. See "Policy context" at the bottom for sources. The Keychain-reader path avoids the third-party-OAuth question entirely — the tokens we use were issued to *Anthropic's own* `client_id`s for the user's own Claude desktop install on the user's own machine.
-
-This approach also has a nontrivial trade-off: a scary-looking macOS Keychain prompt the first time the app runs (cross-app Keychain reads always trigger a system dialog). For an open-source personal utility this is acceptable; for a broader-audience product it would not be.
+This is dramatically simpler than the claude-meter equivalent: Claude desktop encrypts its tokens under the macOS keychain (Chromium Safe Storage scheme, AES-128-CBC, PBKDF2-HMAC-SHA1). Codex CLI just writes plaintext JSON. There is no decryption to perform, no keychain prompt on first launch, no ACL gymnastics.
 
 ## Last verified
 
-- 2026-04-30 — Claude desktop 1.4758.0, on macOS 25.4 (Darwin 25.4.0).
+- 2026-05-01 — Codex CLI auth schema, `~/.codex/auth.json` mode 0600.
 
 ## Hard dependencies
 
-- Claude desktop must be installed (`/Applications/Claude.app`).
-- The user must be signed in to Claude desktop with a Pro/Max account.
-- Claude desktop must launch at least occasionally so its background task can refresh tokens. If Claude desktop hasn't run in long enough that the cached access token has expired, claude-meter will get HTTP 401 and surface "Open Claude desktop to refresh your sign-in" until the user does so.
+- Codex CLI must be installed.
+- The user must have run `codex login` at least once. Codex CLI refreshes the access token in the background when needed; codex-meter just re-reads the file on every poll.
+- If Codex CLI hasn't run in long enough that the cached access token has expired, codex-meter will get HTTP 401 and surface "Run `codex login` to refresh your sign-in" until the user does so.
 
-## Data sources
-
-### Keychain entry (the AES key)
-
-| Field | Value |
-|-------|-------|
-| Class | `kSecClassGenericPassword` |
-| Service (`kSecAttrService`) | `Claude Safe Storage` |
-| Account (`kSecAttrAccount`) | `Claude` |
-
-A second account `Claude Key` exists under the same service. Empirically the OAuth cache decrypts using `Claude`. If `Claude` ever fails to decrypt a v10 blob in the future, fall back to `Claude Key` before giving up.
-
-### Encrypted blob (the token cache)
+## Data source
 
 ```
-~/Library/Application Support/Claude/config.json
+~/.codex/auth.json
 ```
 
-JSON key `oauth:tokenCache`. Value is base64; decoded bytes start with the ASCII prefix `v10` (3 bytes) followed by AES-128-CBC ciphertext.
+File mode is 0600, owned by the user that ran `codex login`. The schema we observed:
 
-## Decryption procedure
+```json
+{
+  "OPENAI_API_KEY": "<top-level alias, may be absent>",
+  "tokens": {
+    "access_token": "<the bearer we send>",
+    "id_token": "...",
+    "refresh_token": "...",
+    "account_id": "..."
+  },
+  "last_refresh": "..."
+}
+```
 
-Inputs:
-- `keychainPassword: Data` — UTF-8 bytes of the Keychain entry's password.
-- `cipherBlobBase64: String` — value of `oauth:tokenCache`.
+We prefer `tokens.access_token`. `OPENAI_API_KEY` is a convenience alias that exists at the top level on some installs; it's the fallback. Token expiry isn't surfaced in this file (Codex CLI rotates in place), so we don't filter on it — a stale token surfaces as HTTP 401 from the API instead.
 
-Steps:
+## Read procedure
 
-1. Base64-decode → `blob`.
-2. Verify `blob.prefix(3) == "v10"`. If not, abort with "unsupported scheme version."
-3. `ciphertext = blob.dropFirst(3)`.
-4. `key = PBKDF2-HMAC-SHA1(password=keychainPassword, salt="saltysalt", iter=1003, keyLen=16)`.
-5. `IV = 16 × 0x20` (ASCII space).
-6. `plaintext = AES-128-CBC-Decrypt(ciphertext, key, IV)`. Strip PKCS#7 padding.
-7. Plaintext is a JSON object. Each key has the form `<client_id>:<some_id>:<audience>:<scopes>`; each value has the shape `{ "token": String, "refreshToken": String, "expiresAt": Int (ms epoch), "subscriptionType"?: String, "rateLimitTier"?: String }`.
-8. Pick the entry whose key contains `user:profile` and whose `expiresAt > now()`. Use its `token` as the bearer.
+1. Read `~/.codex/auth.json` as raw bytes.
+2. Decode as JSON object.
+3. Try `tokens.access_token` (string, non-empty) — return it.
+4. Fall back to top-level `OPENAI_API_KEY` (string, non-empty) — return it.
+5. Otherwise throw `noUsableToken` (Codex CLI not signed in) or `authFileMalformed` (schema unrecognized).
 
-`CommonCrypto` provides PBKDF2-HMAC-SHA1 (`CCKeyDerivationPBKDF`) and AES-128-CBC (`CCCrypt`). `Security.framework` provides Keychain access. Both are system frameworks.
+The `parseTokenFromAuthJSON(_:)` helper in `Services/TokenReader.swift` is a pure function so it's unit-tested directly. The `currentToken()` entry point handles the file IO and surfaces typed errors:
+
+| Symptom | Cause | User-facing message |
+|---|---|---|
+| `~/.codex/auth.json` missing | Codex CLI not installed or `codex login` never run | "Run `codex login` to enable Codex Meter." |
+| File present but unreadable | Permission / IO error | "Couldn't read ~/.codex/auth.json. Check file permissions." |
+| File parses but no recognized token field | Codex CLI changed its auth format | "Codex CLI changed its auth format. Update Codex Meter." |
+| `tokens.access_token` empty / login incomplete | `codex login` started but didn't finish | "Run `codex login` to refresh your sign-in." |
+| API returns 401 | Cached token expired and Codex CLI hasn't refreshed | Same — "Run `codex login` to refresh your sign-in." |
 
 ## Critical implementation rule
 
-**Re-read the encrypted blob on every poll. Never cache the decrypted access token across HTTP calls.**
+**Re-read the file on every poll. Never cache the access token across HTTP calls.**
 
-Caching the decrypted token would defeat the auto-refresh path: when Claude desktop refreshes the token it writes new bytes to `config.json`, and we want our next poll to pick those up. The decrypt overhead is negligible (microseconds) compared to the network call, so there's no performance reason to cache.
+Codex CLI rotates the access token in place: when it refreshes, it writes new bytes to `auth.json`, and we want our next poll to pick those up. The file read is microseconds; there's no perf reason to cache.
 
-## What we *do* cache: the Safe Storage master key
+## Keychain backend (not supported in v1)
 
-The PBKDF2 input — Claude desktop's Safe Storage password from its keychain item — is cached in two layers so that the cross-app keychain ACL prompt fires only on first install:
-
-1. **In-memory** for the process lifetime (`_cachedKeychainKey` in `TokenReader`).
-2. **Persistently in our own keychain item** under service `dev.claudemeter`, account `claude-safe-storage`, with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` so it never iCloud-syncs.
-
-The lookup order on each poll is in-memory → our keychain → Claude desktop's keychain. Reading our own item is silent (our app's signing identity is on its ACL by default). Reading Claude desktop's item is what triggers the macOS ACL prompts the first time.
-
-The Safe Storage password is the same secret we'd be prompted to read from Claude desktop's keychain anyway — both items live on the same machine, encrypted by the same login keychain master key, so duplicating it under our own ACL doesn't change the security posture.
-
-If decryption with either cached key fails (Claude desktop rotated or was reinstalled), the corresponding layer is invalidated and we fall through to the next, which prompts again — same one-time first-install experience.
-
-## Failure modes and user-facing messages
-
-| Symptom | Likely cause | Display |
-|---------|--------------|---------|
-| Keychain entry not found | Claude desktop not installed | "Install Claude desktop and sign in." Link to claude.ai/download. |
-| `errSecItemNotFound` for `oauth:tokenCache` JSON key | User installed Claude desktop but never signed in | "Sign in to Claude desktop to enable Claude Meter." |
-| Keychain access denied (`errSecAuthFailed` / user clicked Deny) | First-launch Keychain ACL prompt declined | "Allow Keychain access to read Claude's sign-in. (Open System Settings → Privacy & Security)." With a retry button. |
-| `config.json` missing | Same as above | "Sign in to Claude desktop." |
-| Base64 decode fails / `v10` prefix missing | Storage format changed in a future Claude desktop release | "Claude desktop changed its storage format. Update Claude Meter." |
-| AES decrypt produces invalid PKCS#7 padding | Key/account pair changed (try `Claude Key` fallback first) | Same as above. |
-| API returns 401 | Cached token expired and Claude desktop hasn't refreshed (typically because it isn't running) | "Open Claude desktop to refresh." Resume on next successful poll. |
-
-claude-meter must distinguish these — they imply different user actions.
+Codex CLI optionally stores tokens in the macOS keychain instead of `auth.json`. codex-meter doesn't read the keychain backend in v1 — if a user has explicitly switched, our error message points them at the file path. Adding keychain support is straightforward (`SecItemCopyMatching` against the documented Codex item) but deferred until anyone reports needing it.
 
 ## What we never do
 
-- Modify Claude desktop's Keychain entry, `config.json`, or any of its files.
+- Modify Codex CLI's `auth.json` or any of its files.
 - Mint our own OAuth tokens or run an OAuth flow.
-- Register a third-party `client_id` with Anthropic.
-- Reuse another Anthropic-developed app's `client_id` to mint tokens for ourselves.
-- Send Claude desktop's `User-Agent` string. We send our own (`claude-meter/<version> (macOS)`) so any detection on Anthropic's side sees us as ourselves, not as Claude desktop.
+- Register a third-party `client_id` with OpenAI.
+- Send Codex CLI's `User-Agent` string. We send our own (`codex-meter/<version> (macOS)`) so any detection on OpenAI's side sees us as ourselves.
 - Cache the decrypted access token across polls.
-- Send tokens off-device. (The persistent Safe Storage key cache stays on-device — `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.)
+- Send tokens off-device.
 
 ## Re-verification
 
-When Claude desktop ships a new version, sanity-check:
+When Codex CLI ships a new version, sanity-check:
 
 ```sh
-# Keychain entry still where we expect
-security find-generic-password -s "Claude Safe Storage" -a "Claude" -g 2>&1 | head
+# auth.json still where we expect, schema still readable
+ls -la ~/.codex/auth.json
+jq -r 'paths(scalars) | join(".")' ~/.codex/auth.json
 
-# oauth:tokenCache key still in config.json
-grep -o '"oauth:[^"]*"' ~/Library/Application\ Support/Claude/config.json
+# extract-codex-token.sh still finds the bearer
+utils/extract-codex-token.sh | head -c 16 && echo "..."
 
-# v10 prefix still in use
-python3 -c "import json,base64; v=json.load(open('$HOME/Library/Application Support/Claude/config.json'))['oauth:tokenCache']; print(base64.b64decode(v)[:8])"
+# probe the endpoint with the extracted token
+utils/probe-codex-usage-api.sh
 ```
 
-The `utils/probe-token-cache.sh` script does a more thorough sweep — it walks every entry in the cache, decodes the cache key, and tests each token against `/api/oauth/usage`. Run it after any major Claude desktop version bump.
+The `probe-codex-usage-api.sh` script does a more thorough sweep — it captures both response body and headers and saves a fresh fixture for parser tests. Run it after any major Codex CLI version bump.
 
-## Policy context (open question)
+## Policy context
 
-Anthropic publicly stated in early 2026 that subscription OAuth tokens are intended only for Claude.ai and Claude Code, and using them in other tools "constitutes a violation of the Consumer Terms of Service." The enforcement target was clearly third-party tools that proxied inference via subscription tokens (the "OpenClaw" pattern). Whether the policy applies to a personal read-only metadata utility like claude-meter is unclear in the policy text.
+The `wham/usage` endpoint is **undocumented** — it's the same one Codex CLI itself polls for its `/status` view (see openai/codex#10869). OpenAI has not published a stable API for usage queries; feature requests for a headless `codex status --json` are open and unmerged (openai/codex#10233, openai/codex#15281).
 
-We are reaching out to Anthropic developer support to ask. Possible outcomes:
-- **Sanctioned**: they offer an explicit OK or a proper API key for usage queries → claude-meter ships as designed.
-- **Tolerated**: no formal blessing but no objection → claude-meter ships with a README note that it depends on undocumented behavior.
-- **Refused**: they ask us to stop → claude-meter is shut down. The local-decrypt path is more polite to remove than a third-party OAuth registration would have been.
+This means the endpoint and its response shape can change without notice. codex-meter's parser is forward-compatible (unknown fields are silently ignored), and HTTP errors degrade gracefully — a 404 surfaces "Codex Meter needs an update."
 
-References (collected during 2026-04-30 research):
-- The Register, *Anthropic clarifies ban on third-party tool access to Claude* (2026-02-20).
-- MindStudio, *What Is the OpenClaw Ban?*
-- claude-code GitHub Issue #28091, *Anthropic disabled OAuth tokens for third-party apps*.
-- Claude Code authentication docs at `code.claude.com/docs/en/authentication`.
+If OpenAI ships a documented usage API, codex-meter should switch to it. The current consumer pattern is "we use what the official CLI uses, and accept that as load-bearing observation."

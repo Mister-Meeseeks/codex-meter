@@ -1,19 +1,19 @@
 #!/usr/bin/env swift
 //
-// Renders the Claude Meter app icon at every macOS AppIcon size into a target
+// Renders the Codex Meter app icon at every macOS AppIcon size into a target
 // directory, by drawing the spec procedurally with CoreGraphics. Source of
 // truth is `assets/icon.svg` and `docs/brand.md`; this script encodes the same
 // geometry so re-running it after a design change is one command.
 //
 // Usage:
 //   swift tools/render-icon.swift [out-dir]
-// Defaults to ClaudeMeter/ClaudeMeter/Resources/Assets.xcassets/AppIcon.appiconset.
+// Defaults to CodexMeter/CodexMeter/Resources/Assets.xcassets/AppIcon.appiconset.
 
 import AppKit
 import CoreGraphics
 import Foundation
 
-let defaultOut = "ClaudeMeter/ClaudeMeter/Resources/Assets.xcassets/AppIcon.appiconset"
+let defaultOut = "CodexMeter/CodexMeter/Resources/Assets.xcassets/AppIcon.appiconset"
 let outURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? defaultOut)
 try FileManager.default.createDirectory(at: outURL, withIntermediateDirectories: true)
 
@@ -24,6 +24,19 @@ let pillRect = CGRect(x: 348, y: 152, width: 328, height: 720)
 let pillCorner: CGFloat = 164
 // In CG (y-up) the "lower half" of the pill is y = 152 .. 512.
 let deepRect = CGRect(x: 348, y: 152, width: 328, height: 360)
+
+// Hexagonal Codex watermark in the upper-right corner. Vertices in CG
+// (y-up) coordinates — equivalent to the SVG geometry flipped about y.
+// Center at (832, 832), pointy-top, side length 70.
+let hexVertices: [CGPoint] = [
+    CGPoint(x: 832, y: 902),   // top
+    CGPoint(x: 893, y: 867),   // upper-right
+    CGPoint(x: 893, y: 797),   // lower-right
+    CGPoint(x: 832, y: 762),   // bottom
+    CGPoint(x: 771, y: 797),   // lower-left
+    CGPoint(x: 771, y: 867),   // upper-left
+]
+let hexLineWidth: CGFloat = 14
 
 let terracotta = CGColor(red: 0xB5/255.0, green: 0x56/255.0, blue: 0x3D/255.0, alpha: 1)
 let cream      = CGColor(red: 0xF4/255.0, green: 0xE8/255.0, blue: 0xDD/255.0, alpha: 1)
@@ -63,6 +76,17 @@ func render(size: Int) -> Data {
     ctx.setFillColor(deep)
     ctx.fill(deepRect)
     ctx.restoreGState()
+
+    // Hexagonal Codex watermark, upper-right corner.
+    let hex = CGMutablePath()
+    hex.move(to: hexVertices[0])
+    for v in hexVertices.dropFirst() { hex.addLine(to: v) }
+    hex.closeSubpath()
+    ctx.addPath(hex)
+    ctx.setStrokeColor(cream)
+    ctx.setLineWidth(hexLineWidth)
+    ctx.setLineJoin(.round)
+    ctx.strokePath()
 
     guard let cg = ctx.makeImage() else { fatalError("makeImage") }
     let bitmap = NSBitmapImageRep(cgImage: cg)

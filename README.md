@@ -22,11 +22,13 @@ cd codex-meter
 ./build.sh
 ```
 
-`build.sh` runs `xcodebuild` (Release configuration, output pinned to `./build/` so it isn't lost in Xcode's hashed DerivedData) and then `open`s the app. Safe to re-run — incremental rebuilds are fast.
-
-**First launch:** macOS may prompt for the usual notarization / unidentified-developer warning.
+**First launch:** macOS may prompt for the usual unidentified-developer warning.
 
 No Dock icon — look for the vessel icon in the menu bar (top-right of the screen). Click it for the popover; ⌘, opens the settings panel.
+
+## Build Script
+
+`build.sh` runs `xcodebuild` (Release configuration, output pinned to `./build/`) and then `open`s the app. Safe to re-run — incremental rebuilds are fast.
 
 ## Codex Auth
 

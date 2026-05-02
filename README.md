@@ -36,7 +36,7 @@ There are no Keychain dialogs. Codex CLI stores its tokens in plaintext at `~/.c
 
 ## Coexistence with claude-meter
 
-codex-meter ships a different bundle ID (`dev.codexmeter.app`) and a visually distinct AppIcon (terracotta vessel + hexagonal Codex watermark) so the two can coexist in the menu bar. If you use both Claude and Codex, install both — each tracks its own subscription.
+codex-meter ships a different bundle ID and a visually distinct AppIcon so the two can coexist in the menu bar. If you use both Claude and Codex, install both — each tracks its own subscription.
 
 ## From Xcode
 

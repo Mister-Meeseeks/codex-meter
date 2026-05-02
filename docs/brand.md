@@ -4,7 +4,7 @@ This doc covers the project's identity — colors, icon, voice, and the rules th
 
 ## Concept
 
-> Claude Meter is a battery indicator for your Claude usage. Install it once, look at it when you wonder, otherwise forget it exists.
+> Codex Meter is a battery indicator for your Codex usage. Install it once, look at it when you wonder, otherwise forget it exists.
 
 That sentence is the north star. Every brand decision passes through it. If a choice would make the user *think about* the app rather than just *use* the data, the choice is wrong.
 
@@ -19,7 +19,7 @@ What this means in practice:
 
 > Would a battery indicator do this?
 
-A battery indicator has no launch screen, no rating prompt, no logo on its menu bar icon, no marketing tagline, no onboarding flow. If the answer is "no, a battery indicator wouldn't do this," neither should Claude Meter.
+A battery indicator has no launch screen, no rating prompt, no logo on its menu bar icon, no marketing tagline, no onboarding flow. If the answer is "no, a battery indicator wouldn't do this," neither should Codex Meter.
 
 ## Reference points
 
@@ -57,11 +57,16 @@ The full palette is small. Six colors, plus their dark-mode variants where appli
 
 **Marketing surfaces use terracotta heavily.** Repo header, social preview card, README accent, future website if any.
 
-## Why terracotta and not Anthropic coral
+## Why terracotta — inherited from claude-meter
 
-Adjacent to Anthropic's palette without being parasitic on it. The proximity signals "this is in the Claude ecosystem"; the distinction signals "this is not an Anthropic product." Using Anthropic's actual coral would create both legal and trust issues — a third-party utility should not appear to claim affiliation.
+codex-meter is a fork of [claude-meter](https://github.com/anthropics/claude-meter). The terracotta palette, vessel-pill icon, and overall battery-indicator concept all come from that project. We kept the visual identity for two reasons:
 
-If Anthropic ever rebrands, our color does not suddenly look stale. We're in their neighborhood, not their house.
+1. **Visual continuity for users running both apps.** Anyone using both Claude and Codex will install both meters — the matching aesthetic makes it obvious they're siblings. The hexagonal Codex watermark in the AppIcon is the only visual differentiator.
+2. **No reason to invent a new palette.** Picking OpenAI-ish colors (the green `#10A37F`, ChatGPT-app charcoal, etc.) would suggest first-party affiliation we don't have.
+
+Using OpenAI's actual brand colors would create the same legal and trust issues a third-party utility should avoid — appearing to claim affiliation. Terracotta is a neutral choice that doesn't claim either side's brand.
+
+If OpenAI rebrands or claude-meter changes its palette, our colors do not suddenly look stale. We're our own thing in someone else's neighborhood.
 
 ## App icon
 
@@ -84,8 +89,8 @@ A vessel — cream pill on a terracotta field, with a deep terracotta fill at 50
 **At small sizes** (16×16, 32×32) the fill detail may not survive compression. That is acceptable — the icon's identity holds even when reduced to "cream pill on terracotta." The fill is a bonus at large sizes, not load-bearing.
 
 **Never:**
-- Use Anthropic's asterisk
-- Use any Claude branding
+- Use OpenAI's spirograph
+- Use any Codex or OpenAI branding
 - Add text or numbers to the icon
 - Use any color outside the locked palette
 
@@ -116,7 +121,7 @@ For the README, GitHub repo description, social preview, future website:
 **No:**
 - Adjectives describing the app's quality ("beautifully designed," "powerful," "delightful")
 - Mission statements or grand framing
-- "Your Claude companion" / "Your usage assistant" / any anthropomorphizing
+- "Your Codex companion" / "Your usage assistant" / any anthropomorphizing
 - Emoji in headings or body copy
 - Animated GIFs that draw attention rather than informing
 - Comparisons to other tools that imply ours is better
@@ -142,6 +147,6 @@ When the project ships, these are needed:
 
 ## What "doing this well" looks like
 
-A user lands on the GitHub repo from a tweet. Within 3 seconds they see: the app icon, a one-line description ("battery indicator for Claude usage"), and a screenshot of the menu bar with the popover open. They understand the product. Within 30 seconds they have decided whether to install it or close the tab. The README does not try to argue them into installing — it tells them what the thing is and lets them decide.
+A user lands on the GitHub repo from a tweet. Within 3 seconds they see: the app icon, a one-line description ("battery indicator for Codex usage"), and a screenshot of the menu bar with the popover open. They understand the product. Within 30 seconds they have decided whether to install it or close the tab. The README does not try to argue them into installing — it tells them what the thing is and lets them decide.
 
 If the README is doing more than that, it is doing too much.

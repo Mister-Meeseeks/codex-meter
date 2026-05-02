@@ -25,18 +25,18 @@ let pillCorner: CGFloat = 164
 // In CG (y-up) the "lower half" of the pill is y = 152 .. 512.
 let deepRect = CGRect(x: 348, y: 152, width: 328, height: 360)
 
-// Hexagonal Codex watermark in the upper-right corner. Vertices in CG
-// (y-up) coordinates — equivalent to the SVG geometry flipped about y.
-// Center at (832, 832), pointy-top, side length 70.
-let hexVertices: [CGPoint] = [
-    CGPoint(x: 832, y: 902),   // top
-    CGPoint(x: 893, y: 867),   // upper-right
-    CGPoint(x: 893, y: 797),   // lower-right
-    CGPoint(x: 832, y: 762),   // bottom
-    CGPoint(x: 771, y: 797),   // lower-left
-    CGPoint(x: 771, y: 867),   // upper-left
-]
-let hexLineWidth: CGFloat = 14
+// Codex blossom watermark, upper-right corner. Three lens-shape
+// ellipses rotated by 0°/60°/120° around (832, 832), forming a 6-petal
+// flower. Each lens is full-height and ~half the radius wide.
+let markCenter = CGPoint(x: 832, y: 832)
+let markRadius: CGFloat = 70
+let markLineWidth: CGFloat = 14
+let lensRect = CGRect(
+    x: -markRadius * 0.55 / 2,
+    y: -markRadius,
+    width: markRadius * 0.55,
+    height: markRadius * 2
+)
 
 let terracotta = CGColor(red: 0xB5/255.0, green: 0x56/255.0, blue: 0x3D/255.0, alpha: 1)
 let cream      = CGColor(red: 0xF4/255.0, green: 0xE8/255.0, blue: 0xDD/255.0, alpha: 1)
@@ -77,16 +77,17 @@ func render(size: Int) -> Data {
     ctx.fill(deepRect)
     ctx.restoreGState()
 
-    // Hexagonal Codex watermark, upper-right corner.
-    let hex = CGMutablePath()
-    hex.move(to: hexVertices[0])
-    for v in hexVertices.dropFirst() { hex.addLine(to: v) }
-    hex.closeSubpath()
-    ctx.addPath(hex)
+    // Codex blossom watermark, upper-right corner. Three rotated lenses.
     ctx.setStrokeColor(cream)
-    ctx.setLineWidth(hexLineWidth)
-    ctx.setLineJoin(.round)
-    ctx.strokePath()
+    ctx.setLineWidth(markLineWidth)
+    for i in 0..<3 {
+        ctx.saveGState()
+        ctx.translateBy(x: markCenter.x, y: markCenter.y)
+        ctx.rotate(by: Double(i) * .pi / 3)
+        ctx.addPath(CGPath(ellipseIn: lensRect, transform: nil))
+        ctx.strokePath()
+        ctx.restoreGState()
+    }
 
     guard let cg = ctx.makeImage() else { fatalError("makeImage") }
     let bitmap = NSBitmapImageRep(cgImage: cg)

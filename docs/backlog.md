@@ -2,7 +2,7 @@
 
 These are deferred from v1 to keep the initial release tight. Each entry is structured so it can be lifted into a GitHub issue with minimal editing. Order is rough priority — top items deliver more value per unit of work.
 
-The bar for promoting any of these into v1.x is: **does this make the gauge more useful, without expanding what the app *is*?** If it would turn Claude Meter into a productivity tool, an analytics dashboard, or a coach, it doesn't belong here.
+The bar for promoting any of these into v1.x is: **does this make the gauge more useful, without expanding what the app *is*?** If it would turn Codex Meter into a productivity tool, an analytics dashboard, or a coach, it doesn't belong here.
 
 ---
 
@@ -61,11 +61,11 @@ Items that originally lived here and shipped as part of the initial release:
 
 ---
 
-## v1.4 — per-surface attribution (only if API exposes it)
+## v1.4 — per-feature attribution (only if API exposes it)
 
-**Problem.** Heavy Cowork users want to know how much of their burn came from Cowork vs Code vs Chat. The current API doesn't expose this — usage is account-aggregate.
+**Problem.** Heavy users of specific Codex features (Spark, code review, etc.) want to know how much of their burn came from each. The `wham/usage` response *does* expose `additional_rate_limits` (per-feature buckets like `GPT-5.3-Codex-Spark`/`codex_bengalfox`) and `code_review_rate_limit`, but they're per-feature limits, not per-feature consumption against the overall window.
 
-**Approach.** *Wait and see.* If Anthropic adds per-surface fields to the OAuth usage endpoint, surface them in the popover as a small breakdown beneath the totals. Until then, no client-side hack — there's no reliable way to attribute without instrumentation we don't have.
+**Approach.** *Wait and see.* If OpenAI adds per-feature consumption to the response, surface the top 2–3 contributors in the popover as a small breakdown beneath the totals. Until then, no client-side hack — there's no reliable way to attribute without instrumentation we don't have.
 
 **Why this is in the backlog at all.** To prevent it from being filed as a bug. Users will ask for it; the answer is "the API doesn't tell us, and we're not guessing."
 
@@ -76,8 +76,8 @@ Items that originally lived here and shipped as part of the initial release:
 These have come up but are outside the project's scope. Documented here so they get a fast "no" rather than reopening the discussion every six months.
 
 - **Windows / Linux ports.** Different APIs, different distribution stories, different communities. Fork-friendly; not core-roadmap.
-- **iOS companion app.** Battery-style indicators don't translate to a phone where you'd have to open the app to see them. The Settings page on claude.ai already serves this need on mobile.
-- **Per-task burn logging / session attribution.** Requires hooks into Claude Code, Cowork, etc. that we don't have and can't reliably build. The polling-delta approach has too much noise (memory updates, scheduled tasks, etc.) to be trustworthy.
+- **iOS companion app.** Battery-style indicators don't translate to a phone where you'd have to open the app to see them. The Codex / ChatGPT Settings pages already serve this need on mobile.
+- **Per-task burn logging / session attribution.** Requires hooks into Codex CLI's runtime that we don't have and can't reliably build. The polling-delta approach has too much noise (memory updates, scheduled tasks, etc.) to be trustworthy.
 - **Quota optimization tips, "you've used X% — try doing Y".** Coach behavior. Not what this app is.
 - **Cost estimation for API users.** Different audience, different data source, different product. Fork it if you want it.
 - **Web dashboard / cloud sync.** No. This is a local-first utility with zero account system. Adding any cloud component compromises the security and simplicity story.

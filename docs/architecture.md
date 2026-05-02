@@ -35,7 +35,7 @@ CodexMeter/
       RadialPacingGauge.swift   # popover dial, 0–150% with green/amber/red zones
       NumericLabel.swift        # plain percentage text (currently unused)
       WarningDot.swift          # non-tracked-window severity dot
-      CodexMark.swift           # 6-vertex hexagonal outline used as a brand watermark
+      CodexMark.swift           # 6-petal Codex blossom (3 lens ellipses rotated at 0°/60°/120°) used as a brand watermark
   Settings/
     AppSettings.swift           # @Observable wrapper for user prefs
     SettingsView.swift          # macOS Settings scene (launch-at-login + hidden debug)

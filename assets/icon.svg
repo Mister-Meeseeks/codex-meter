@@ -4,15 +4,18 @@
 
   Inherits the claude-meter visual structure (terracotta squircle + cream
   battery pill + deep-terracotta fill). The fork's distinguishing element
-  is a small hexagonal Codex watermark in the upper-right corner — the
-  same hex mark used as the in-app brand watermark on VesselGauge and
-  PacingArc.
+  is a small Codex blossom watermark in the upper-right corner — three
+  inscribed lens-shape ellipses rotated at 0°/60°/120° forming a 6-petal
+  flower with hexagonal symmetry. Same mark as the in-app brand
+  watermark on VesselGauge and PacingArc.
 
   - Square 1024×1024 canvas, terracotta background.
   - Cream vertical pill, ~32% wide and ~70% tall, vertically centered.
   - Lower 50% of the pill filled with deep terracotta, flat horizontal
     boundary at the pill's vertical midpoint (y = 512).
-  - Upper-right corner: cream hexagonal outline, side length 70.
+  - Upper-right corner: three cream lens ellipses (rx 19.25, ry 70) at
+    0°/60°/120°, centered at (832, 192). Six petal tips form the
+    hexagonal silhouette implicitly.
   - The squircle uses rx = 22% × 1024 = 225 as a starting approximation.
     Final asset should re-cut the corner using Apple's superellipse
     template before export to .icns.
@@ -34,14 +37,12 @@
   <rect x="348" y="512" width="328" height="360" fill="#8A3F2C" clip-path="url(#pill)"/>
 
   <!--
-    Hexagonal Codex watermark, upper-right corner. Pointy-top hex with
-    side length 70, centered at (832, 192). Vertices at 30° intervals
-    rotated so the top vertex sits at 12 o'clock.
+    Codex blossom watermark, upper-right. Three lens ellipses rotated
+    0°/60°/120° around (832, 192) form a 6-petal flower.
   -->
-  <polygon
-    points="832,122 893,157 893,227 832,262 771,227 771,157"
-    fill="none"
-    stroke="#F4E8DD"
-    stroke-width="14"
-    stroke-linejoin="round"/>
+  <g fill="none" stroke="#F4E8DD" stroke-width="14">
+    <ellipse cx="832" cy="192" rx="19.25" ry="70"/>
+    <ellipse cx="832" cy="192" rx="19.25" ry="70" transform="rotate(60 832 192)"/>
+    <ellipse cx="832" cy="192" rx="19.25" ry="70" transform="rotate(120 832 192)"/>
+  </g>
 </svg>

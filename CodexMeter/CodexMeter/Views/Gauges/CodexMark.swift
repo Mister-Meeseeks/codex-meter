@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Hexagonal outline, a tiny approximation of OpenAI's hex-knot brand
-/// pattern. Drawn with `Canvas` so it stays crisp at the 4–8pt sizes
-/// used as a brand watermark on `VesselGauge`. Color is template-friendly
-/// — pass `.primary` for menu-bar template tinting, or any explicit color.
+/// Six-petal blossom — an approximation of OpenAI's hex-knot brand
+/// pattern. Three full-height lens-shape ellipses rotated by 0°, 60°,
+/// and 120° overlap to form six outer petal tips with 6-fold symmetry;
+/// the hexagonal silhouette is implied by the tip positions, not drawn
+/// explicitly. Drawn with `Canvas` so it stays crisp at the 4–8pt
+/// sizes used as a brand watermark on `VesselGauge` and `PacingArc`.
 ///
-/// Structurally analogous to the previous `ClaudeMark` (a sunburst): the
-/// call sites in `VesselGauge` and `PacingArc` use the same size + line
-/// weight, so the visual layout is unchanged.
+/// Color is template-friendly — pass `.primary` for menu-bar template
+/// tinting, or any explicit color.
 struct CodexMark: View {
     var color: Color = .primary
     var size: CGFloat = 4
@@ -17,27 +18,33 @@ struct CodexMark: View {
         Canvas { context, canvas in
             let cx = canvas.width / 2
             let cy = canvas.height / 2
-            // Inset by half the stroke so the polygon's outer edge lands
-            // exactly on the bounding box, avoiding clipped strokes.
+            // Inset by half the stroke so the outermost edges land on the
+            // bounding box, avoiding clipped strokes.
             let r = min(canvas.width, canvas.height) / 2 - lineWidth / 2
-            var path = Path()
-            for i in 0..<6 {
-                // Start at the top vertex (12 o'clock) and walk clockwise.
-                let angle = Double(i) * .pi / 3 - .pi / 2
-                let x = cx + CGFloat(cos(angle)) * r
-                let y = cy + CGFloat(sin(angle)) * r
-                if i == 0 {
-                    path.move(to: CGPoint(x: x, y: y))
-                } else {
-                    path.addLine(to: CGPoint(x: x, y: y))
+
+            // Three lens-shape ellipses rotated by 0°, 60°, and 120°. Each
+            // lens is full-height (2r) and ~half the radius wide. The
+            // overlap creates six outer tips at hexagonal vertices, which
+            // is what reads as the Codex blossom silhouette.
+            let lensWidth = r * 0.55
+            let lensHeight = r * 2
+            let lensRect = CGRect(
+                x: -lensWidth / 2,
+                y: -lensHeight / 2,
+                width: lensWidth,
+                height: lensHeight
+            )
+            for i in 0..<3 {
+                context.drawLayer { ctx in
+                    ctx.translateBy(x: cx, y: cy)
+                    ctx.rotate(by: .radians(Double(i) * .pi / 3))
+                    ctx.stroke(
+                        Path(ellipseIn: lensRect),
+                        with: .color(color),
+                        style: StrokeStyle(lineWidth: lineWidth)
+                    )
                 }
             }
-            path.closeSubpath()
-            context.stroke(
-                path,
-                with: .color(color),
-                style: StrokeStyle(lineWidth: lineWidth, lineJoin: .round)
-            )
         }
         .frame(width: size, height: size)
     }
@@ -49,6 +56,7 @@ struct CodexMark: View {
         CodexMark(size: 8)
         CodexMark(size: 16)
         CodexMark(size: 32, lineWidth: 2)
+        CodexMark(size: 64, lineWidth: 3)
     }
     .padding()
     .background(.background)

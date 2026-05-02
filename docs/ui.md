@@ -24,20 +24,20 @@ Vertical rounded pill displaying *remaining* capacity (battery-style). Fills bot
 - Outer pill: 9px wide × 16px tall, 1.25px stroke, 3px corner radius
 - Inner fill: 6px wide rounded rect, 1.5px corner radius, 2px inset on each side, bottom-anchored
 - A floor of 1.75px on the rendered fill height keeps near-empty pills visually distinct from fully-empty ones
-- Optional `ClaudeMark` splatter overlaid at the bottom-right corner, ~8px, poking out 1.5px past the pill. Suppressed when the menu bar shows vessel + pacing side by side, since the pacing arc carries its own splatter on the right.
+- Optional `CodexMark` 6-petal blossom (three lens ellipses rotated at 0°/60°/120°) overlaid at the bottom-right corner, ~8px, poking out 1.5px past the pill. Suppressed when the menu bar shows vessel + pacing side by side, since the pacing arc carries its own brand mark on the right.
 
 ### PacingArc
 
-Speedometer-style arc opening upward. Conceptually distinct from the popover's radial gauges: the menu-bar arc puts the on-pace target at three-quarters along the visible sweep, with the final quarter as over-pace runway. Anything past 100% pace just keeps filling the runway until it clamps at the splatter clearance.
+Speedometer-style arc opening upward. Conceptually distinct from the popover's radial gauges: the menu-bar arc puts the on-pace target at three-quarters along the visible sweep, with the final quarter as over-pace runway. Anything past 100% pace just keeps filling the runway until it clamps at the mark clearance.
 
 **Geometry:**
 - Drawn into a 22×14 canvas
 - Arc radius 8px, centered horizontally
 - Background track: 1px stroke at 25% opacity
 - Foreground fill: 2px stroke, rounded line cap
-- The visible sweep stops 12° short of the right endpoint to leave room for the brand splatter
+- The visible sweep stops 12° short of the right endpoint to leave room for the brand mark
 - Target dot at the 75% landing: 0.8px radius normally, 1.2px when the projection's `outcome == .onPace`
-- `ClaudeMark` overlaid at the bottom-right corner, ~8px
+- `CodexMark` overlaid at the bottom-right corner, ~8px
 
 The arc fill is single-color throughout — over-pace doesn't change the color, only extends the fill length until it hits the clearance clamp. The color decision happens at the gauge level (see "Color trigger" below).
 
@@ -111,7 +111,7 @@ Opens on click of the menu bar item. ~280px wide, system-styled.
 │                                     │
 │  Updated 12s ago         [⚙]  [⟳]   │
 │                                     │
-│                  Quit Claude Meter  │
+│                  Quit Codex Meter  │
 └─────────────────────────────────────┘
 ```
 
@@ -173,7 +173,7 @@ A 1Hz `TimelineView` runs the "Updated X ago" line via `DurationFormatter.compac
 
 When the most recent poll failed but a cached snapshot is still showing, an `API currently unavailable` line appears in red beneath the timestamp. When `signInMessage` is non-nil (sign-in / scope / token-format errors), it shows in red below that.
 
-To the right: a `gearshape` settings link and an `arrow.clockwise` refresh button, both borderless. A `Quit Claude Meter` button on its own row at the bottom (⌘Q).
+To the right: a `gearshape` settings link and an `arrow.clockwise` refresh button, both borderless. A `Quit Codex Meter` button on its own row at the bottom (⌘Q).
 
 ### Debug badge
 
@@ -184,19 +184,18 @@ When `settings.debug.enabled` is true, a yellow `DEBUG MODE` capsule appears at 
 The bars and dials still render the cached snapshot (or the synthesized debug values). The footer is where errors surface:
 
 - `API currently unavailable` (red) — most recent poll failed with an API error and a cached snapshot is still on screen
-- `Open Claude desktop and sign in to enable Claude Meter.` — no token, no config, etc.
-- `Open Claude desktop to refresh your sign-in.` — token expired (401 or `noUsableToken`)
-- `Allow Keychain access in System Settings → Privacy & Security.` — keychain access denied
-- `Claude desktop changed its storage format. Update Claude Meter.` — unsupported `v10` blob, base64 decode fail, or plaintext-not-JSON
-- `Couldn't decrypt Claude desktop's sign-in. Update Claude Meter.` — AES decrypt failed
-- `Authorization scope changed — Claude Meter may need an update.` — HTTP 403
-- `Claude Meter needs an update.` — 404 or response decode failure
+- `Run \`codex login\` to enable Codex Meter.` — `~/.codex/auth.json` missing
+- `Couldn't read ~/.codex/auth.json. Check file permissions.` — file present but unreadable
+- `Codex CLI changed its auth format. Update Codex Meter.` — auth.json schema unrecognized
+- `Run \`codex login\` to refresh your sign-in.` — token expired (401 or `noUsableToken`)
+- `Authorization rejected — your Codex plan may not allow this.` — HTTP 403
+- `Codex Meter needs an update.` — 404 or response decode failure
 
 Generic API failures (rate limit, network, 5xx) only show the `API currently unavailable` banner — there's nothing for the user to do but wait.
 
 ## Settings panel
 
-Opened via the gear icon in the popover footer, or ⌘,. Backed by the `Settings` scene in `ClaudeMeterApp`. Form-styled with `.formStyle(.grouped)`.
+Opened via the gear icon in the popover footer, or ⌘,. Backed by the `Settings` scene in `CodexMeterApp`. Form-styled with `.formStyle(.grouped)`.
 
 Public surface:
 
@@ -239,7 +238,7 @@ The popover opens and closes via the system's default `MenuBarExtra` behavior �
 - Show notifications (deferred to v1.1 and opt-in)
 - Pop a "rate this app" prompt
 - Show a welcome screen, onboarding, or first-launch tutorial
-- Display Claude branding, the Anthropic asterisk, or any third-party trademark beyond the abstract `ClaudeMark` splatter (which is a generic 8-rayed glyph, not Anthropic's actual asterisk)
+- Display OpenAI branding, the ChatGPT logo, or any third-party trademark beyond the abstract `CodexMark` (which is three rotated lens ellipses forming a 6-petal blossom — an approximation, not OpenAI's actual hex-knot mark)
 - Render the gauge in any color other than what's specified above
 - Use emoji in any UI surface
 - Make sound

@@ -1,51 +1,42 @@
 # utils/
 
-Verification helpers used during development and for periodic re-checks against Anthropic's OAuth + usage API. **Not** part of the shipped app — these are developer-side tools.
+Verification helpers used during development and for periodic re-checks against Codex CLI's auth file and the `wham/usage` endpoint. **Not** part of the shipped app — these are developer-side tools.
 
 ## Scripts
 
-### `probe-usage-api.sh`
+### `extract-codex-token.sh`
 
-Calls `GET https://api.anthropic.com/api/oauth/usage` and pretty-prints the response. Use this to spot-check that the API contract documented in `../docs/api.md` still holds.
-
-```sh
-# Preferred: bring your own bearer token
-CLAUDE_TOKEN=<token> bash utils/probe-usage-api.sh
-
-# Fallback (until claude-meter has its own OAuth working):
-# decrypts a token from Claude desktop's local cache.
-bash utils/probe-usage-api.sh
-```
-
-The fallback path will trigger one macOS Keychain prompt (for `Claude Safe Storage`).
-
-### `probe-token-cache.sh`
-
-Walks every entry in Claude desktop's `oauth:tokenCache`, decodes the cache key (client_id / audience / scopes), reports the value's structure, and tests each access token against `/api/oauth/usage`. Prints HTTP status + body excerpt — no token bytes.
-
-Useful for:
-- Confirming the scope namespace and required scope haven't changed.
-- Discovering new OAuth `client_id`s if Anthropic ships new first-party clients.
-- Spotting changes to the token cache schema in Claude desktop.
+Prints the cached Codex CLI bearer token to stdout. Reads `~/.codex/auth.json` (override with `$CODEX_AUTH_PATH`) and extracts `tokens.access_token`, falling back to top-level `OPENAI_API_KEY`. Exits non-zero with a diagnostic if the file is missing or no recognized token field is present.
 
 ```sh
-bash utils/probe-token-cache.sh
+utils/extract-codex-token.sh > /dev/null && echo "got token" || echo "no token"
 ```
 
-### `extract-claude-desktop-token.py`
+Use this when you need a token for one-off curl invocations against `chatgpt.com/backend-api/*`.
 
-Helper used by `probe-usage-api.sh` to decrypt one usable bearer token out of Claude desktop's local cache (Chromium Safe Storage scheme). Reads `_PW` and `_CONFIG_PATH` from the environment; prints the chosen token to stdout. Not generally invoked directly.
+### `probe-codex-usage-api.sh`
 
-This helper is **transitional**. Once `claude-meter` has its own OAuth flow working, every script here should default to `$CLAUDE_TOKEN` and the desktop-cache decryption can be removed.
+Calls `GET https://chatgpt.com/backend-api/wham/usage` and dumps the response. Saves a redacted fixture (with `user_id`, `account_id`, and `email` replaced) to `assets/fixtures/wham-usage.json` for parser tests. Run after any Codex CLI version bump that might have moved the endpoint or changed the response shape.
+
+```sh
+utils/probe-codex-usage-api.sh
+```
+
+Outputs:
+- HTTP status + headers to stdout
+- Pretty-printed body to stdout
+- Body to `/tmp/codex-meter-usage-probe.json`
+- Headers to `/tmp/codex-meter-usage-probe.headers.txt`
+- Redacted fixture to `assets/fixtures/wham-usage.json` (only on HTTP 200)
 
 ## Why these aren't in the app
 
-- They use `python3` + `openssl` for crypto, which is fine for a developer-side script but wrong for the shipped app (Swift uses `CryptoKit`/`CommonCrypto`).
-- They depend on Claude desktop's local storage scheme, which the app explicitly does **not** depend on (see `../docs/auth.md`).
-- They're for verification, not user-facing functionality.
+- They depend on shell-side tools (`jq`, `curl`) that are fine for a developer-side probe but wrong for the shipped binary.
+- They're for verification, not user-facing functionality. The production code path is the in-app `TokenReader` + `CodexProvider` + `CodexAPI`.
+- If the probe scripts return data the app doesn't, that's a parser bug — fix the parser, not the script.
 
 ## When to re-run
 
-- After every Anthropic-side change (new `anthropic-beta` header, new endpoint behavior).
+- Whenever Codex CLI ships a new version, to confirm the auth-file schema and endpoint shape still match what `Services/TokenReader.swift` and `Services/CodexAPI.swift` decode.
 - Before cutting a release, as a smoke test that the API contract hasn't drifted.
-- When debugging "why doesn't my OAuth flow work?" — `probe-token-cache.sh` is often the fastest way to see what scopes / client_ids Anthropic currently supports.
+- When debugging "why doesn't my popover show data?" — the probe surfaces 4xx/5xx + headers that the in-app error path may compress.

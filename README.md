@@ -4,7 +4,7 @@ A macOS menu bar app that displays Codex subscription usage.
 
 ![Codex Meter showing the menu bar gauge and popover open on a normal desktop](assets/screenshots/hero.png)
 
-A fork of [claude-meter](https://github.com/anthropics/claude-meter) targeting OpenAI's Codex CLI. Same battery-indicator UX, different backend.
+A fork of [claude-meter](https://github.com/CrocSwap/claude-meter) targeting OpenAI's Codex CLI. Same battery-indicator UX, different backend.
 
 ## Requirements
 
@@ -22,15 +22,21 @@ cd codex-meter
 ./build.sh
 ```
 
-`build.sh` runs `xcodebuild` (Release configuration, output pinned to `./build/` so it isn't lost in Xcode's hashed DerivedData) and then `open`s the app. Safe to re-run — incremental rebuilds are fast.
+**First launch:** macOS may prompt for the usual unidentified-developer warning.
 
-**First launch:** unlike claude-meter, there are no Keychain dialogs. Codex CLI stores its tokens in plaintext at `~/.codex/auth.json` (mode 0600), so codex-meter just reads the file. macOS may prompt for the usual notarization / unidentified-developer warning if the binary isn't signed.
+No Dock icon — look for the vessel icon in the menu bar (top-right of the screen). Click it for the popover; ⌘, opens the settings panel.
 
-The app has `LSUIElement=true`, so no Dock icon appears — look for the vessel icon in the menu bar (top-right of the screen). Click it for the popover; ⌘, opens the settings panel.
+## Build Script
+
+`build.sh` runs `xcodebuild` (Release configuration, output pinned to `./build/`) and then `open`s the app. Safe to re-run — incremental rebuilds are fast.
+
+## Codex Auth
+
+There are no Keychain dialogs. Codex CLI stores its tokens in plaintext at `~/.codex/auth.json`, so codex-meter just reads the file. macOS may prompt for the usual notarization / unidentified-developer warning.
 
 ## Coexistence with claude-meter
 
-codex-meter ships a different bundle ID (`dev.codexmeter.app`) and a visually distinct AppIcon (terracotta vessel + hexagonal Codex watermark) so the two can coexist in the menu bar. If you use both Claude and Codex, install both — each tracks its own subscription.
+codex-meter ships a different bundle ID and a visually distinct AppIcon so the two can coexist in the menu bar. If you use both Claude and Codex, install both — each tracks its own subscription.
 
 ## From Xcode
 

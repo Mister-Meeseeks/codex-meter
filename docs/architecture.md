@@ -61,6 +61,8 @@ Two stateful actors, plus pure helpers and a couple of `@Observable` settings cl
 
 **`UsagePoller`** owns the timer. On each tick: ask the `UsageProvider` for a snapshot, on success update the store, on failure record the error in the store and apply exponential backoff (capped at 5 minutes). On HTTP 429 with a `Retry-After` header, the next sleep honors the server's value as a one-shot override. The poller does not interpret data; it just moves bytes from the provider into the store.
 
+One cadence — 60s — in every state. The poller has no notion of whether the popover is open, because the endpoint rate-limits and polling harder while the user is looking is how you get stale data at the worst moment (see AGENTS.md's footprint constraint). `refreshNow()` is the only out-of-band poll, wired to the popover's refresh button.
+
 **Pure helpers** (not actors) for the rest:
 - `UsageProvider` — protocol with one method, `fetchUsage() async throws -> UsageSnapshot`. Single concrete implementation today (`CodexProvider`); the protocol exists so test fakes (and any future provider) swap in without touching the poller.
 - `CodexProvider` — combines token reading and HTTP fetch behind one entry point. Throws `TokenReader.ReadError` on auth failures and `CodexAPI.APIError` on fetch failures so the poller can surface different user-facing messages.
@@ -81,7 +83,7 @@ The pure-helper rule matters because these are the parts that need unit tests. S
 - The poller is the only thing that triggers network activity
 - No `Task { ... }` started from a view body; if a view needs to react to user input, it sends an action to the store/poller
 
-The single mental model: **data flows in one direction.** Poller fetches → Store holds → Views render. Settings flow back the other way (view → store → poller, e.g. "user changed polling interval"), but data never does.
+The single mental model: **data flows in one direction.** Poller fetches → Store holds → Views render. Commands flow back the other way (view → poller — today that's only the refresh button calling `refreshNow()`), but data never does.
 
 ## Dependency rules
 

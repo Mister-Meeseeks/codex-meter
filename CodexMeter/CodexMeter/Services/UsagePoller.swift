@@ -2,11 +2,16 @@ import Foundation
 
 /// Drives `UsageStore` with periodic API calls. Owns its task lifecycle.
 ///
-/// Polling cadence: 60s regardless of popover open/closed. The
-/// `wham/usage` endpoint rate-limits aggressively — pushing harder while
-/// the popover is open just trips the limiter sooner. On error,
-/// exponential backoff with a 5-minute ceiling; if the server provides a
-/// `Retry-After` it's honored as a one-shot override.
+/// **One cadence, 60s, in every state.** The `wham/usage` endpoint rate-
+/// limits aggressively, so polling harder while the popover is open just
+/// trips the limiter sooner — and a tripped limiter shows the user stale
+/// data at exactly the moment they're looking at it. The poller therefore
+/// doesn't know or care whether the popover is open; `refreshNow()` is the
+/// only way to force an out-of-band poll, wired to the popover's refresh
+/// button. Don't reintroduce an "active" interval.
+///
+/// On error, exponential backoff with a 5-minute ceiling; if the server
+/// provides a `Retry-After` it's honored as a one-shot override.
 ///
 /// The poller does not interpret data; it just moves bytes from the
 /// provider into the store. Errors are categorized by concrete type
@@ -16,12 +21,10 @@ import Foundation
 actor UsagePoller {
     private let store: UsageStore
     private let provider: any UsageProvider
-    private let normalInterval: TimeInterval
-    private let activeInterval: TimeInterval
+    private let interval: TimeInterval
     private let backoffCeiling: TimeInterval
 
     private var task: Task<Void, Never>?
-    private var isPopoverOpen: Bool = false
     private var consecutiveFailures: Int = 0
     /// One-shot override applied to the next sleep, set when the API tells
     /// us explicitly when to retry (e.g. `Retry-After` on a 429). Cleared
@@ -31,14 +34,12 @@ actor UsagePoller {
     init(
         store: UsageStore,
         provider: any UsageProvider,
-        normalInterval: TimeInterval = 60,
-        activeInterval: TimeInterval = 60,
+        interval: TimeInterval = 60,
         backoffCeiling: TimeInterval = 300
     ) {
         self.store = store
         self.provider = provider
-        self.normalInterval = normalInterval
-        self.activeInterval = activeInterval
+        self.interval = interval
         self.backoffCeiling = backoffCeiling
     }
 
@@ -54,10 +55,6 @@ actor UsagePoller {
         task = nil
     }
 
-    func setPopoverOpen(_ open: Bool) {
-        self.isPopoverOpen = open
-    }
-
     /// Force an out-of-band poll (e.g. user clicks "Refresh"). Resets the
     /// next-tick timer is *not* the caller's job — the running loop's sleep
     /// is unaffected, but the snapshot updates immediately.
@@ -70,9 +67,8 @@ actor UsagePoller {
         if let override = nextDelayOverride {
             return min(override, backoffCeiling)
         }
-        let base = isPopoverOpen ? activeInterval : normalInterval
-        guard consecutiveFailures > 0 else { return base }
-        let backoff = base * pow(2.0, Double(consecutiveFailures - 1))
+        guard consecutiveFailures > 0 else { return interval }
+        let backoff = interval * pow(2.0, Double(consecutiveFailures - 1))
         return min(backoff, backoffCeiling)
     }
 

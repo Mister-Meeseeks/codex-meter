@@ -25,8 +25,6 @@ struct CodexMeterApp: App {
                 onRefresh: { Task { await poller.refreshNow() } },
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
-            .onAppear { Task { await poller.setPopoverOpen(true) } }
-            .onDisappear { Task { await poller.setPopoverOpen(false) } }
         } label: {
             MenuBarLabel(store: store, settings: settings)
         }

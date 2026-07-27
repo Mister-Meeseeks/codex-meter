@@ -15,33 +15,27 @@ struct UsagePollerTests {
     })
     private static let failingProvider = FakeProvider(fetch: { throw FakeError.boom })
 
-    @Test("Base interval used when no failures (popover closed)")
-    func baseIntervalNoFailuresClosed() async {
+    @Test("Base interval used when no failures")
+    func baseIntervalNoFailures() async {
         let store = await UsageStore()
         let poller = UsagePoller(
             store: store,
             provider: Self.okProvider,
-            normalInterval: 60,
-            activeInterval: 15,
+            interval: 60,
             backoffCeiling: 300
         )
         let interval = await poller.nextInterval()
         #expect(interval == 60)
     }
 
-    @Test("Active (faster) interval used when popover open")
-    func activeIntervalNoFailuresOpen() async {
+    @Test("Shipping default is the 60s cadence AGENTS.md mandates")
+    func defaultIntervalIs60() async {
+        // The endpoint rate-limits, so there is deliberately no faster
+        // cadence to select — not while the popover is open, not anywhere.
         let store = await UsageStore()
-        let poller = UsagePoller(
-            store: store,
-            provider: Self.okProvider,
-            normalInterval: 60,
-            activeInterval: 15,
-            backoffCeiling: 300
-        )
-        await poller.setPopoverOpen(true)
+        let poller = UsagePoller(store: store, provider: Self.okProvider)
         let interval = await poller.nextInterval()
-        #expect(interval == 15)
+        #expect(interval == 60)
     }
 
     @Test("Backoff doubles on each failure, capped at ceiling")
@@ -50,8 +44,7 @@ struct UsagePollerTests {
         let poller = UsagePoller(
             store: store,
             provider: Self.failingProvider,
-            normalInterval: 60,
-            activeInterval: 15,
+            interval: 60,
             backoffCeiling: 300
         )
 
@@ -87,8 +80,7 @@ struct UsagePollerTests {
         let poller = UsagePoller(
             store: store,
             provider: Self.failingProvider,
-            normalInterval: 60,
-            activeInterval: 15
+            interval: 60
         )
         await poller.refreshNow()
         let hasError = await MainActor.run { store.lastError != nil }

@@ -6,14 +6,14 @@ import Testing
 struct ProjectorTests {
 
     static let now = Date(timeIntervalSince1970: 1_777_577_933)
-    static let fiveHourDuration: TimeInterval = 5 * 3600
-    static let sevenDayDuration: TimeInterval = 7 * 86400
+    static let sessionDuration: TimeInterval = 5 * 3600
+    static let weeklyDuration: TimeInterval = 7 * 86400
 
     @Test("Zero utilization → nil")
     func zeroUtilization() {
         let window = UsageWindow(utilization: 0, resetsAt: Self.now.addingTimeInterval(3600))
         let p = Projector.project(window: window,
-                                  windowDuration: Self.fiveHourDuration,
+                                  windowDuration: Self.sessionDuration,
                                   now: Self.now)
         #expect(p == nil)
     }
@@ -22,7 +22,7 @@ struct ProjectorTests {
     func missingResetsAt() {
         let window = UsageWindow(utilization: 40, resetsAt: nil)
         let p = Projector.project(window: window,
-                                  windowDuration: Self.fiveHourDuration,
+                                  windowDuration: Self.sessionDuration,
                                   now: Self.now)
         #expect(p == nil)
     }
@@ -31,7 +31,7 @@ struct ProjectorTests {
     func resetInPast() {
         let window = UsageWindow(utilization: 40, resetsAt: Self.now.addingTimeInterval(-60))
         let p = Projector.project(window: window,
-                                  windowDuration: Self.fiveHourDuration,
+                                  windowDuration: Self.sessionDuration,
                                   now: Self.now)
         #expect(p == nil)
     }
@@ -39,9 +39,9 @@ struct ProjectorTests {
     @Test("Window hasn't started yet (no elapsed time) → nil")
     func noElapsedTime() {
         // resetsAt is exactly windowDuration in the future → elapsed = 0.
-        let window = UsageWindow(utilization: 1, resetsAt: Self.now.addingTimeInterval(Self.fiveHourDuration))
+        let window = UsageWindow(utilization: 1, resetsAt: Self.now.addingTimeInterval(Self.sessionDuration))
         let p = Projector.project(window: window,
-                                  windowDuration: Self.fiveHourDuration,
+                                  windowDuration: Self.sessionDuration,
                                   now: Self.now)
         #expect(p == nil)
     }
@@ -52,7 +52,7 @@ struct ProjectorTests {
         // Linear projection lands at 100%, well within ±5pp band.
         let window = UsageWindow(utilization: 50, resetsAt: Self.now.addingTimeInterval(2.5 * 3600))
         guard let p = Projector.project(window: window,
-                                        windowDuration: Self.fiveHourDuration,
+                                        windowDuration: Self.sessionDuration,
                                         now: Self.now) else {
             Issue.record("expected non-nil projection")
             return
@@ -67,7 +67,7 @@ struct ProjectorTests {
         // Burn rate = 40 pp/h; hits 100% in 0.5h; dead time = 3 - 0.5 = 2.5h.
         let window = UsageWindow(utilization: 80, resetsAt: Self.now.addingTimeInterval(3 * 3600))
         guard let p = Projector.project(window: window,
-                                        windowDuration: Self.fiveHourDuration,
+                                        windowDuration: Self.sessionDuration,
                                         now: Self.now) else {
             Issue.record("expected non-nil projection")
             return
@@ -86,7 +86,7 @@ struct ProjectorTests {
         // Linear projection lands at 20% — 80% unused.
         let window = UsageWindow(utilization: 10, resetsAt: Self.now.addingTimeInterval(2.5 * 3600))
         guard let p = Projector.project(window: window,
-                                        windowDuration: Self.fiveHourDuration,
+                                        windowDuration: Self.sessionDuration,
                                         now: Self.now) else {
             Issue.record("expected non-nil projection")
             return
@@ -106,7 +106,7 @@ struct ProjectorTests {
         // 5h window, 2.5h elapsed, 53% used → projects to 106%.
         let window = UsageWindow(utilization: 53, resetsAt: Self.now.addingTimeInterval(2.5 * 3600))
         guard let p = Projector.project(window: window,
-                                        windowDuration: Self.fiveHourDuration,
+                                        windowDuration: Self.sessionDuration,
                                         now: Self.now) else {
             Issue.record("expected non-nil projection")
             return
@@ -123,7 +123,7 @@ struct ProjectorTests {
         // 7d window, 3.5d elapsed (3.5d until reset), 50% used.
         let window = UsageWindow(utilization: 50, resetsAt: Self.now.addingTimeInterval(3.5 * 86400))
         guard let p = Projector.project(window: window,
-                                        windowDuration: Self.sevenDayDuration,
+                                        windowDuration: Self.weeklyDuration,
                                         now: Self.now) else {
             Issue.record("expected non-nil projection")
             return

@@ -10,14 +10,26 @@ struct UsageWindow: Decodable, Equatable, Sendable {
     /// since epoch). Optional because the API may omit it in edge cases.
     let resetsAt: Date?
 
-    init(utilization: Double, resetsAt: Date?) {
+    /// Total length of the rate-limit window, from `limit_window_seconds`.
+    ///
+    /// This is the field that identifies *which* window the API is
+    /// describing. `primary_window` / `secondary_window` are positional
+    /// slots that OpenAI reassigns — when session limits were dropped the
+    /// weekly window moved into `primary_window` — so `UsageSnapshot`
+    /// sorts windows by this value rather than by slot. Optional because
+    /// the field isn't guaranteed; see `UsageSnapshot.classify`.
+    let duration: TimeInterval?
+
+    init(utilization: Double, resetsAt: Date?, duration: TimeInterval? = nil) {
         self.utilization = utilization
         self.resetsAt = resetsAt
+        self.duration = duration
     }
 
     private enum CodingKeys: String, CodingKey {
         case usedPercent = "used_percent"
         case resetAt = "reset_at"
+        case limitWindowSeconds = "limit_window_seconds"
     }
 
     init(from decoder: Decoder) throws {
@@ -28,5 +40,6 @@ struct UsageWindow: Decodable, Equatable, Sendable {
         } else {
             self.resetsAt = nil
         }
+        self.duration = try c.decodeIfPresent(TimeInterval.self, forKey: .limitWindowSeconds)
     }
 }

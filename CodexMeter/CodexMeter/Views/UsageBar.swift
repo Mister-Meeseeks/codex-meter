@@ -70,7 +70,7 @@ struct UsageBar: View {
 }
 
 #Preview("Low") {
-    UsageBar(title: "5 hours",
+    UsageBar(title: "Session",
              window: UsageWindow(utilization: 14.0,
                                  resetsAt: Date().addingTimeInterval(3 * 3600)))
         .padding()
@@ -78,7 +78,7 @@ struct UsageBar: View {
 }
 
 #Preview("Medium") {
-    UsageBar(title: "7 days",
+    UsageBar(title: "Weekly",
              window: UsageWindow(utilization: 65.0,
                                  resetsAt: Date().addingTimeInterval(2 * 86400)))
         .padding()
@@ -86,7 +86,7 @@ struct UsageBar: View {
 }
 
 #Preview("High") {
-    UsageBar(title: "5 hours",
+    UsageBar(title: "Session",
              window: UsageWindow(utilization: 92.0,
                                  resetsAt: Date().addingTimeInterval(45 * 60)))
         .padding()
@@ -94,7 +94,7 @@ struct UsageBar: View {
 }
 
 #Preview("No data") {
-    UsageBar(title: "5 hours", window: nil)
+    UsageBar(title: "Session", window: nil)
         .padding()
         .frame(width: 280)
 }

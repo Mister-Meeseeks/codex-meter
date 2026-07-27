@@ -108,22 +108,32 @@ struct MenuBarLabel: View {
             : store.projection(for: window)
     }
 
+    /// The window the menu bar actually renders: the user's preference when
+    /// the API is publishing it, otherwise whichever window we do have. A
+    /// saved preference of `.session` must not blank the menu bar for as
+    /// long as OpenAI keeps session limits retired.
+    private var effectiveWindow: TrackedWindow? {
+        displaySnapshot?.resolvedWindow(preferring: settings.trackedWindow)
+    }
+
     private var trackedWindow: UsageWindow? {
-        switch settings.trackedWindow {
-        case .fiveHour: return displaySnapshot?.fiveHour
-        case .sevenDay: return displaySnapshot?.sevenDay
-        }
+        guard let effectiveWindow else { return nil }
+        return displaySnapshot?[effectiveWindow]
     }
 
     private var trackedUtil: Double? { trackedWindow?.utilization }
 
     private var trackedProjection: Projection? {
-        displayProjection(for: settings.trackedWindow)
+        guard let effectiveWindow else { return nil }
+        return displayProjection(for: effectiveWindow)
     }
 
+    /// Severity source for the ambient dot. Nil when the other window isn't
+    /// published — there's no second window to warn about.
     private var nonTrackedProjection: Projection? {
-        let other: TrackedWindow = settings.trackedWindow == .fiveHour ? .sevenDay : .fiveHour
-        return displayProjection(for: other)
+        guard let effectiveWindow,
+              displaySnapshot?[effectiveWindow.other] != nil else { return nil }
+        return displayProjection(for: effectiveWindow.other)
     }
 
     private var dotSeverity: WarningDot.Severity {

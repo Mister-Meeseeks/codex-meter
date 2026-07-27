@@ -8,10 +8,10 @@ The app is small enough that the architecture is also small. One actor, a couple
 CodexMeter/
   CodexMeterApp.swift           # @main, MenuBarExtra + Settings scene wiring
   Models/
-    UsageSnapshot.swift         # struct: holds 5h + 7d state
-    UsageWindow.swift           # struct: utilization, resetsAt
+    UsageSnapshot.swift         # struct: session + weekly windows, sorted by reported length
+    UsageWindow.swift           # struct: utilization, resetsAt, duration
     Projection.swift            # struct: paceRatio + outcome (onPace/over/under)
-    DisplayMode.swift           # enum TrackedWindow { fiveHour, sevenDay }
+    DisplayMode.swift           # enum TrackedWindow { session, weekly } + label/other/migration
     Threshold.swift             # 4-state bar fill classifier (neutral/normal/warning/critical)
     AppError.swift              # wraps TokenReader.ReadError + CodexAPI.APIError
   Services/
@@ -45,6 +45,7 @@ CodexMeter/
     Info.plist
 assets/icon.svg                  # source of truth for the app icon
 assets/fixtures/wham-usage.json  # redacted fixture from a real probe, used in parser tests
+assets/fixtures/wham-usage-dual-window.json  # archived shape from when session limits existed
 tools/render-icon.swift          # rasterizes icon.svg into the AppIcon set
 utils/                           # helper scripts (token probe, usage-API probe)
 docs/                            # all the specs that aren't code
@@ -93,9 +94,9 @@ If a file needs to import something it shouldn't (e.g. a View importing `URLSess
 
 ## Testing strategy
 
-- **Unit tests:** `CodexAPI` parsers (the most likely thing to break when the endpoint shifts), `TokenReader.parseTokenFromAuthJSON` (auth.json schema), `Projector` math (pace ratio, on-pace band, dead-time, unused-fraction), `UsagePoller` interval/backoff logic against a fake `UsageProvider`.
+- **Unit tests:** `CodexAPI` parsers (the most likely thing to break when the endpoint shifts), window classification (`UsageSnapshot.classify` — which windows exist and which slot they land in is the part OpenAI actually changes), `TokenReader.parseTokenFromAuthJSON` (auth.json schema), `Projector` math (pace ratio, on-pace band, dead-time, unused-fraction), `UsagePoller` interval/backoff logic against a fake `UsageProvider`.
 - **Snapshot tests:** view `#Preview` blocks cover the common states (low/medium/high utilization, no data, error). When the app gets a more formal snapshot pipeline, expand from there.
-- **Manual smoke tests:** cold launch, auth file missing, network offline, 401, 500, both windows null, individual windows null. The hidden ⌥⌘⇧D debug panel in the settings sheet lets you preview every visual state without burning real quota.
+- **Manual smoke tests:** cold launch, auth file missing, network offline, 401, 500, both windows null, individual windows null. The hidden ⌥⌘⇧D debug panel in the settings sheet lets you preview every visual state without burning real quota, including the "API publishes a session window" toggle for the one-window vs. two-window popover layouts.
 
 No mocking framework. Hand-roll fakes — `UsageProvider` is one method, so a fake is three lines.
 

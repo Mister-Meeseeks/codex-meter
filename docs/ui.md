@@ -14,7 +14,7 @@ What appears in the menu bar is controlled by three popover toggles, persisted i
 
 At least one of Show Usage / Show Pacing must remain on; both `AppSettings` and the popover's checkbox bindings defend that invariant.
 
-The menu bar always reflects the **tracked window** (`AppSettings.trackedWindow`, default `.fiveHour`). The non-tracked window's severity is encoded as the warning dot. There is no separate "display mode" — the gauges aren't mutually exclusive.
+The menu bar always reflects the **tracked window** (`AppSettings.trackedWindow`, default `.session`), resolved through `UsageSnapshot.resolvedWindow(preferring:)` — if OpenAI isn't publishing the preferred window, the menu bar falls back to the one it is publishing rather than going blank. The non-tracked window's severity is encoded as the warning dot; with a single published window there's no dot. There is no separate "display mode" — the gauges aren't mutually exclusive.
 
 ### VesselGauge
 
@@ -47,7 +47,7 @@ When the **non-tracked** window has a problem, a small dot appears in the upper-
 
 | Severity | Trigger | Color |
 |---|---|---|
-| Absent | non-tracked pace ratio ≤ 1.10, or no projection available | — |
+| Absent | non-tracked pace ratio ≤ 1.10, no projection available, or no second window published | — |
 | Terracotta | `1.10 < paceRatio ≤ 1.30` | `#B5563D` (light) / `#C8654D` (dark) |
 | Red | `paceRatio > 1.30` | `#D63838` (light) / `#E85555` (dark) |
 
@@ -76,16 +76,20 @@ When `store.lastError` is non-nil and there's no cached snapshot to fall back on
 
 Opens on click of the menu bar item. ~280px wide, system-styled.
 
+**Which rows appear is driven by the API, not by settings.** The popover renders one usage bar and one radial dial per window in `UsageSnapshot.availableWindows`. A window OpenAI stops publishing (session limits, as of 2026-07) vanishes from the popover rather than sitting there reading "no data", and reappears on its own if reinstated. Before the first successful poll the layout shows weekly alone — the window that's always been published — so the loading state matches where the data lands.
+
+The layout below shows both windows. With weekly only, the SESSION bar, the Session dial and the Menubar radio are all absent, and the single dial centers.
+
 **Layout** (vertical stack, top to bottom):
 
 ```
 ┌─────────────────────────────────────┐
 │  [DEBUG MODE]  ← only in debug      │
 │                                     │
-│  SESSION                            │
+│  SESSION            ← only when     │
 │  ████████████░░░░░░░░  58% left     │
 │  resets in 3 hours, 14 minutes      │
-│                                     │
+│                     ← published     │
 │  WEEKLY                             │
 │  ███████████░░░░░░░░░  72% left     │
 │  resets in 4 days, 6 hours          │
@@ -130,11 +134,11 @@ Opens on click of the menu bar item. ~280px wide, system-styled.
 | Warning | 20–40% remaining (`60 ≤ utilization < 80`) | `Color.usageYellow` |
 | Critical | ≤20% remaining (`utilization ≥ 80`) | `Color.criticalRed` |
 
-Heading: uppercased label (`SESSION` / `WEEKLY`), caption2 weight semibold, secondary color, 1pt tracking. Right-aligned subhead shows `X% left`. Below the bar, a caption shows `resets in <DurationFormatter.verbose>` or `resets now` / `reset time unavailable` / `no data` for the degraded paths.
+One bar per published window. Heading: uppercased label (`SESSION` / `WEEKLY`, from `TrackedWindow.label`), caption2 weight semibold, secondary color, 1pt tracking. Right-aligned subhead shows `X% left`. Below the bar, a caption shows `resets in <DurationFormatter.verbose>` or `resets now` / `reset time unavailable` / `no data` for the degraded paths.
 
 ### Pacing dials
 
-A `RadialPacingGauge` for each window, rendered side-by-side beneath a small `PACING` section header.
+A `RadialPacingGauge` for each published window, rendered side-by-side beneath a small `PACING` section header. A lone dial centers in the popover width.
 
 - 110×76 canvas (per dial)
 - Stroke width 10
@@ -148,12 +152,14 @@ A `RadialPacingGauge` for each window, rendered side-by-side beneath a small `PA
 
 A single status sentence sits beneath both dials (driven by `pacingStatus` in `UsagePopover`):
 
+Only published windows are evaluated, so with weekly alone the sentence reflects that one window.
+
 | Zones | Sentence | Color |
 |---|---|---|
 | Weekly over | `Weekly limits hitting in X.\nWill lose Y of subscription access` | `criticalRed` |
 | Session over (and Weekly not) | `Session limits hitting in X.\nWill lose Y of subscription access` | `criticalRed` |
-| Either on-target | `On target. Maintain token spend.` | `usageGreen` |
-| Both under | `Under utilized. Use more tokens.` | secondary |
+| Any on-target | `On target. Maintain token spend.` | `usageGreen` |
+| All under | `Under utilized. Use more tokens.` | secondary |
 | Otherwise | (no sentence) | — |
 
 `X` is `secondsUntilReset − deadTime`, `Y` is dead time itself, both formatted via `DurationFormatter.coarse`. The status updates live via a 60s `TimelineView` so "limits hitting in X" stays current.
@@ -162,7 +168,7 @@ A single status sentence sits beneath both dials (driven by `pacingStatus` in `U
 
 A small section with the radio + three checkboxes shown in the layout above:
 
-- **Menubar** radio — `Session` / `Weekly`, binds to `settings.trackedWindow`
+- **Menubar** radio — one option per published window, binds to `settings.trackedWindow`. Hidden entirely when only one window is published: there's no choice to make, and the menu bar tracks that window regardless of the stored preference
 - **Show Usage in Menubar** — toggle; disabled when it's the only checked option (so the user can't end up with nothing in the menu bar)
 - **Show Pacing in Menubar** — toggle; same disable rule
 - **Show % in Menubar** — toggle; independent
@@ -208,7 +214,9 @@ That's it for the public surface. The window is sized at 480×560 normally, and 
 
 A second section appears when the user hits ⌥⌘⇧D (or when `debug.enabled` is true on launch). The section overrides every value the menu bar and popover read so a developer can preview every visual state without burning real quota. Persisted to `UserDefaults` so the override survives relaunches.
 
-Per-window controls (5-hour and 7-day):
+- **API publishes a session window** toggle — synthesizes a snapshot with or without the session window, so both popover layouts (two-window and weekly-only) are previewable. Hides the session sliders when off.
+
+Per-window controls (session and weekly):
 - Utilization slider (0–100)
 - Resets-in number field (minutes)
 - Projection picker — `No projection` / `On pace` / `Over pace` / `Under pace`

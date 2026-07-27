@@ -14,9 +14,19 @@ final class UsageStore {
     private(set) var lastRefresh: Date?
     private(set) var lastError: AppError?
 
-    /// Window durations.
-    static let fiveHourDuration: TimeInterval = 5 * 3600
-    static let sevenDayDuration: TimeInterval = 7 * 86400
+    /// Window lengths used only when the API omits `limit_window_seconds`.
+    /// The value the response reports always wins — these are the last
+    /// resort so a projection is still possible from a window that didn't
+    /// say how long it is.
+    static let sessionFallbackDuration: TimeInterval = 5 * 3600
+    static let weeklyFallbackDuration: TimeInterval = 7 * 86400
+
+    static func fallbackDuration(for window: TrackedWindow) -> TimeInterval {
+        switch window {
+        case .session: return sessionFallbackDuration
+        case .weekly: return weeklyFallbackDuration
+        }
+    }
 
     func updateSnapshot(_ snapshot: UsageSnapshot, at date: Date = Date()) {
         self.snapshot = snapshot
@@ -38,21 +48,11 @@ final class UsageStore {
     /// Returns `nil` whenever `Projector` can't produce a value (no
     /// reset time, zero utilization, etc.).
     func projection(for window: TrackedWindow, now: Date = Date()) -> Projection? {
-        switch window {
-        case .fiveHour:
-            guard let fh = snapshot?.fiveHour else { return nil }
-            return Projector.project(
-                window: fh,
-                windowDuration: Self.fiveHourDuration,
-                now: now
-            )
-        case .sevenDay:
-            guard let sd = snapshot?.sevenDay else { return nil }
-            return Projector.project(
-                window: sd,
-                windowDuration: Self.sevenDayDuration,
-                now: now
-            )
-        }
+        guard let usage = snapshot?[window] else { return nil }
+        return Projector.project(
+            window: usage,
+            windowDuration: usage.duration ?? Self.fallbackDuration(for: window),
+            now: now
+        )
     }
 }

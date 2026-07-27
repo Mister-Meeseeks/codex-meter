@@ -11,7 +11,7 @@ struct UsagePollerTests {
     }
 
     private static let okProvider = FakeProvider(fetch: {
-        UsageSnapshot(fiveHour: nil, sevenDay: nil)
+        UsageSnapshot(session: nil, weekly: nil)
     })
     private static let failingProvider = FakeProvider(fetch: { throw FakeError.boom })
 

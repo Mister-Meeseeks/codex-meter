@@ -65,8 +65,13 @@ final class AppSettings {
             self.showPercentInMenuBar = true
         }
 
-        let windowRaw = defaults.string(forKey: Keys.trackedWindow) ?? TrackedWindow.fiveHour.rawValue
-        self.trackedWindow = TrackedWindow(rawValue: windowRaw) ?? .fiveHour
+        // `fromPersisted` accepts the pre-rename `fiveHour` / `sevenDay`
+        // raw values so an upgrade keeps the user's choice. The default
+        // stays `.session`: it resolves to whatever window is published
+        // (weekly, while session limits are retired) and puts the menu bar
+        // back on the shorter, more actionable window if they return.
+        let windowRaw = defaults.string(forKey: Keys.trackedWindow)
+        self.trackedWindow = windowRaw.flatMap(TrackedWindow.fromPersisted) ?? .session
 
         self.debug = DebugSettings(defaults: defaults)
     }
@@ -84,6 +89,18 @@ final class AppSettings {
         static let orphans = [
             "displayMode",              // pre-granular-toggles display-mode picker
             "showUnderPaceAnnotation",  // pre-radial-gauge popover annotation toggle
+            // Debug-panel keys from before the windows were renamed after
+            // their role instead of their duration.
+            "debug.fiveHour.util",
+            "debug.fiveHour.minutesToReset",
+            "debug.fiveHour.outcome",
+            "debug.fiveHour.overPaceHours",
+            "debug.fiveHour.unusedFraction",
+            "debug.sevenDay.util",
+            "debug.sevenDay.minutesToReset",
+            "debug.sevenDay.outcome",
+            "debug.sevenDay.overPaceHours",
+            "debug.sevenDay.unusedFraction",
         ]
     }
 }

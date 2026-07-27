@@ -2,14 +2,15 @@
 
 Four primitive numbers from the API plus a derived projection. This doc is the source of truth for how each is calculated and when it's surfaced.
 
-## The four primitives
+## The primitives
 
-Read directly from the API response (see `docs/api.md`):
+Read directly from the API response (see `docs/api.md`), per published window:
 
-- **5h utilization** (%, 0-100) — current 5-hour window
-- **7d utilization** (%, 0-100) — current 7-day window
-- **5h reset time** — when the 5-hour window rolls over
-- **7d reset time** — when the 7-day window rolls over
+- **utilization** (%, 0-100) — how much of the window is spent
+- **reset time** — when the window rolls over
+- **window length** — from `limit_window_seconds`; identifies the window and feeds the projection
+
+OpenAI publishes a **weekly** window (7d) and, when session limits are in force, a **session** window (5h historically). As of 2026-07-27 only weekly is published. Either may be absent — every metric below is computed per available window, and the UI renders only what exists.
 
 These are stored in `UsageSnapshot` and updated on every successful poll.
 
@@ -27,7 +28,7 @@ Unit boundaries are firm: do not show `0:47` when `47m` would do, do not show `7
 
 ## The projection — pace ratio and dead time
 
-`Projector.project(window:windowDuration:now:)` is a pure function that takes one `UsageWindow` plus the window's total duration (5h or 7d) and returns either a `Projection` or `nil`. The math is deliberately simple — single-snapshot linear extrapolation, no sample history:
+`Projector.project(window:windowDuration:now:)` is a pure function that takes one `UsageWindow` plus the window's total duration and returns either a `Projection` or `nil`. The duration comes from the window itself (`limit_window_seconds`), falling back to `UsageStore.fallbackDuration(for:)` only when the API omits it — so a retuned window is scored against its real length, not a hardcoded guess. The math is deliberately simple — single-snapshot linear extrapolation, no sample history:
 
 ```
 elapsed              = windowDuration − (resetsAt − now)
@@ -83,11 +84,13 @@ The popover shows a single status line beneath both `RadialPacingGauge`s. It's c
 | target | `0.85 ≤ paceRatio ≤ 1.10` |
 | over | `paceRatio > 1.10` |
 
+Only **published** windows are considered — with weekly alone, the rules collapse to that one window's zone.
+
 Selection rules (in priority order):
 1. If **Weekly** is over → `"Weekly limits hitting in X.\nWill lose Y of subscription access"` (red)
 2. Else if **Session** is over → same template, swapped label (red)
-3. Else if either window is on target → `"On target. Maintain token spend."` (green)
-4. Else if both are under → `"Under utilized. Use more tokens."` (secondary)
+3. Else if any published window is on target → `"On target. Maintain token spend."` (green)
+4. Else if all published windows are under → `"Under utilized. Use more tokens."` (secondary)
 5. Else → no status line
 
 `X` is `secondsUntilReset − deadTime` (i.e. how long until lockout starts) formatted via `DurationFormatter.coarse`. `Y` is the dead time itself, same formatter.
@@ -108,6 +111,8 @@ The non-tracked window's severity surfaces as a small dot in the upper-right of 
 
 The dot is asymmetric: it never indicates under-pace situations. Underutilization is information, not action; the menu bar surfaces actionable concerns only.
 
-## Pacing applies to both windows; default tracks 5h
+## Pacing applies to every published window; default prefers session
 
-The same calculation runs for both windows. The user picks which one the menu bar tracks via the popover's "Menubar" radio (`AppSettings.trackedWindow`); the default is `.fiveHour`. The popover always shows both windows' bars and both radial gauges regardless of the tracked-window setting — that selection only affects which window's data the menu-bar vessel/arc reflects, and which window's status drives the dot.
+The same calculation runs for each published window. The user picks which one the menu bar tracks via the popover's "Menubar" radio (`AppSettings.trackedWindow`); the default is `.session`. That selection only affects which window's data the menu-bar vessel/arc reflects, and which window's status drives the dot — the popover shows a bar and a radial gauge for every published window regardless.
+
+`trackedWindow` is a *preference*, not a guarantee. `UsageSnapshot.resolvedWindow(preferring:)` downgrades it to the other window when the preferred one isn't published, which is what keeps the menu bar populated for users whose saved choice is Session while session limits are retired. The radio itself is hidden when only one window exists — there's nothing to pick — and the warning dot disappears, since there's no non-tracked window to warn about.

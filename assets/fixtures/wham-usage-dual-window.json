@@ -7,12 +7,17 @@
     "allowed": true,
     "limit_reached": false,
     "primary_window": {
-      "used_percent": 12,
-      "limit_window_seconds": 604800,
-      "reset_after_seconds": 448085,
-      "reset_at": 1785615365
+      "used_percent": 1,
+      "limit_window_seconds": 18000,
+      "reset_after_seconds": 12496,
+      "reset_at": 1777694872
     },
-    "secondary_window": null
+    "secondary_window": {
+      "used_percent": 4,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 301422,
+      "reset_at": 1777983799
+    }
   },
   "code_review_rate_limit": null,
   "additional_rate_limits": [
@@ -24,11 +29,16 @@
         "limit_reached": false,
         "primary_window": {
           "used_percent": 0,
+          "limit_window_seconds": 18000,
+          "reset_after_seconds": 18000,
+          "reset_at": 1777700377
+        },
+        "secondary_window": {
+          "used_percent": 0,
           "limit_window_seconds": 604800,
           "reset_after_seconds": 604800,
-          "reset_at": 1785772080
-        },
-        "secondary_window": null
+          "reset_at": 1778287177
+        }
       }
     }
   ],
@@ -52,8 +62,5 @@
   },
   "rate_limit_reached_type": null,
   "promo": null,
-  "rate_limit_reset_credits": {
-    "available_count": 2,
-    "applicable_available_count": 0
-  }
+  "referral_beacon": null
 }

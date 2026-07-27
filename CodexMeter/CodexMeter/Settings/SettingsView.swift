@@ -61,22 +61,26 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
 
             if debug.enabled {
+                Toggle("API publishes a session window", isOn: $debug.sessionWindowPresent)
+                    .toggleStyle(.switch)
+                if debug.sessionWindowPresent {
+                    debugWindowControls(
+                        title: "Session window",
+                        util: $debug.sessionUtil,
+                        minutesToReset: $debug.sessionMinutesToReset,
+                        outcome: $debug.sessionOutcome,
+                        overPaceHours: $debug.sessionOverPaceHours,
+                        unusedFraction: $debug.sessionUnusedFraction
+                    )
+                    Divider()
+                }
                 debugWindowControls(
-                    title: "5-hour window",
-                    util: $debug.fiveHourUtil,
-                    minutesToReset: $debug.fiveHourMinutesToReset,
-                    outcome: $debug.fiveHourOutcome,
-                    overPaceHours: $debug.fiveHourOverPaceHours,
-                    unusedFraction: $debug.fiveHourUnusedFraction
-                )
-                Divider()
-                debugWindowControls(
-                    title: "7-day window",
-                    util: $debug.sevenDayUtil,
-                    minutesToReset: $debug.sevenDayMinutesToReset,
-                    outcome: $debug.sevenDayOutcome,
-                    overPaceHours: $debug.sevenDayOverPaceHours,
-                    unusedFraction: $debug.sevenDayUnusedFraction
+                    title: "Weekly window",
+                    util: $debug.weeklyUtil,
+                    minutesToReset: $debug.weeklyMinutesToReset,
+                    outcome: $debug.weeklyOutcome,
+                    overPaceHours: $debug.weeklyOverPaceHours,
+                    unusedFraction: $debug.weeklyUnusedFraction
                 )
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {
@@ -104,7 +108,7 @@ struct SettingsView: View {
         } header: {
             Text("Debug")
         } footer: {
-            Text("Hidden developer mode — overrides what the menu bar and popover display so you can preview every visual state without burning real quota. ⌥⌘⇧D toggles visibility.")
+            Text("Hidden developer mode — overrides what the menu bar and popover display so you can preview every visual state without burning real quota, including whether OpenAI is publishing a session window. ⌥⌘⇧D toggles visibility.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -29,6 +29,8 @@ Outputs:
 - Headers to `/tmp/codex-meter-usage-probe.headers.txt`
 - Redacted fixture to `assets/fixtures/wham-usage.json` (only on HTTP 200)
 
+`assets/fixtures/wham-usage-dual-window.json` sits alongside it as a hand-kept archive of the shape the endpoint returned while OpenAI still published a 5h session window. The probe never touches it.
+
 ## Why these aren't in the app
 
 - They depend on shell-side tools (`jq`, `curl`) that are fine for a developer-side probe but wrong for the shipped binary.

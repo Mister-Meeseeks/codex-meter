@@ -21,22 +21,21 @@ struct UsagePopover: View {
                     .clipShape(Capsule())
                     .frame(maxWidth: .infinity, alignment: .center)
             }
-            UsageBar(title: "Session", window: displaySnapshot?.fiveHour)
-            UsageBar(title: "Weekly", window: displaySnapshot?.sevenDay)
+            ForEach(windows, id: \.self) { window in
+                UsageBar(title: window.label, window: displaySnapshot?[window])
+            }
 
             Divider()
 
             sectionTitle("PACING")
             VStack(spacing: 10) {
                 HStack(alignment: .top, spacing: 16) {
-                    RadialPacingGauge(
-                        label: "Session",
-                        projection: displayProjection(for: .fiveHour)
-                    )
-                    RadialPacingGauge(
-                        label: "Weekly",
-                        projection: displayProjection(for: .sevenDay)
-                    )
+                    ForEach(windows, id: \.self) { window in
+                        RadialPacingGauge(
+                            label: window.label,
+                            projection: displayProjection(for: window)
+                        )
+                    }
                 }
                 TimelineView(.periodic(from: .now, by: 60)) { context in
                     if let status = pacingStatus(now: context.date) {
@@ -54,15 +53,21 @@ struct UsagePopover: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 12) {
-                    Text("Menubar")
-                    Picker("", selection: trackedWindowBinding) {
-                        Text("Session").tag(TrackedWindow.fiveHour)
-                        Text("Weekly").tag(TrackedWindow.sevenDay)
+                // Only worth showing when there's a choice to make. With a
+                // single published window the menu bar tracks it regardless
+                // of the stored preference (see `resolvedWindow`).
+                if windows.count > 1 {
+                    HStack(spacing: 12) {
+                        Text("Menubar")
+                        Picker("", selection: trackedWindowBinding) {
+                            ForEach(windows, id: \.self) { window in
+                                Text(window.label).tag(window)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.radioGroup)
+                        .horizontalRadioGroupLayout()
                     }
-                    .labelsHidden()
-                    .pickerStyle(.radioGroup)
-                    .horizontalRadioGroupLayout()
                 }
                 Toggle("Show Usage in Menubar", isOn: showUsageBinding)
                     .toggleStyle(.checkbox)
@@ -191,6 +196,21 @@ struct UsagePopover: View {
         settings.debug.enabled ? settings.debug.syntheticSnapshot() : store.snapshot
     }
 
+    /// Windows to render, driven by what the API actually published. Rows,
+    /// dials and the tracked-window picker all key off this, so a window
+    /// OpenAI stops publishing (session limits, as of 2026-07) disappears
+    /// from the popover instead of sitting there reading "no data" — and
+    /// comes back on its own if they reinstate it.
+    ///
+    /// Falls back to weekly before the first successful poll: it's the
+    /// window that's always been published, so the loading state matches
+    /// the layout the data will land in.
+    private var windows: [TrackedWindow] {
+        guard let snapshot = displaySnapshot else { return [.weekly] }
+        let available = snapshot.availableWindows
+        return available.isEmpty ? [.weekly] : available
+    }
+
     private func displayProjection(for window: TrackedWindow) -> Projection? {
         if settings.debug.enabled {
             if let synthetic = settings.debug.syntheticProjection(for: window) {
@@ -207,50 +227,44 @@ struct UsagePopover: View {
     }
 
     private func snapshotProjection(for window: TrackedWindow, snapshot: UsageSnapshot?) -> Projection? {
-        guard let snapshot else { return nil }
-        switch window {
-        case .fiveHour:
-            guard let w = snapshot.fiveHour else { return nil }
-            return Projector.project(window: w, windowDuration: UsageStore.fiveHourDuration)
-        case .sevenDay:
-            guard let w = snapshot.sevenDay else { return nil }
-            return Projector.project(window: w, windowDuration: UsageStore.sevenDayDuration)
-        }
+        guard let usage = snapshot?[window] else { return nil }
+        return Projector.project(
+            window: usage,
+            windowDuration: usage.duration ?? UsageStore.fallbackDuration(for: window)
+        )
     }
 
     // MARK: - Pacing status sentence
 
-    /// Single status line shown beneath both gauges. Picks the message
-    /// based on which zone each pacing ratio falls into:
-    /// - both `< 85%` → under-utilized advice
+    /// Single status line shown beneath the gauges. Picks the message
+    /// based on which zone each published window's pacing ratio falls into:
+    /// - all `< 85%` → under-utilized advice
     /// - any `85–110%` → on-target affirmation
     /// - any `> 110%` → burnout warning, naming the offending window
     ///   (Weekly takes precedence when both are over).
     ///
+    /// Only windows in `windows` are considered, so the sentence reads
+    /// correctly whether OpenAI publishes one window or two.
+    ///
     /// `now` is threaded through so the burnout line's "limits hitting in
     /// X" stays live as time passes.
     private func pacingStatus(now: Date) -> PacingStatusMessage? {
-        let session = displayProjection(for: .fiveHour)
-        let weekly = displayProjection(for: .sevenDay)
-        let sessionZone = pacingZone(session)
-        let weeklyZone = pacingZone(weekly)
+        let evaluated = windows.map { (window: $0, projection: displayProjection(for: $0)) }
+        guard !evaluated.isEmpty else { return nil }
 
-        if weeklyZone == .over, let p = weekly {
-            return makeBurnout(label: "Weekly",
+        // `windows` is ordered session-then-weekly, so taking the *last*
+        // over-pace window gives Weekly precedence when both are over.
+        if let worst = evaluated.last(where: { pacingZone($0.projection) == .over }),
+           let p = worst.projection {
+            return makeBurnout(label: worst.window.label,
                                projection: p,
-                               window: displaySnapshot?.sevenDay,
+                               window: displaySnapshot?[worst.window],
                                now: now)
         }
-        if sessionZone == .over, let p = session {
-            return makeBurnout(label: "Session",
-                               projection: p,
-                               window: displaySnapshot?.fiveHour,
-                               now: now)
-        }
-        if sessionZone == .target || weeklyZone == .target {
+        if evaluated.contains(where: { pacingZone($0.projection) == .target }) {
             return .onTarget
         }
-        if sessionZone == .under && weeklyZone == .under {
+        if evaluated.allSatisfy({ pacingZone($0.projection) == .under }) {
             return .underUtilized
         }
         return nil
@@ -375,14 +389,33 @@ struct UsagePopover: View {
     }
 }
 
-#Preview("Signed in — fresh data") {
+/// Both windows published — the shape the API returned before session
+/// limits were retired, and the shape it returns again if they come back.
+private func bothWindowsSnapshot() -> UsageSnapshot {
+    UsageSnapshot(
+        session: UsageWindow(utilization: 14.0,
+                             resetsAt: Date().addingTimeInterval(3 * 3600),
+                             duration: UsageStore.sessionFallbackDuration),
+        weekly: UsageWindow(utilization: 65.0,
+                            resetsAt: Date().addingTimeInterval(2 * 86400),
+                            duration: UsageStore.weeklyFallbackDuration)
+    )
+}
+
+#Preview("Weekly only — current API") {
     let store = UsageStore()
     store.updateSnapshot(UsageSnapshot(
-        fiveHour: UsageWindow(utilization: 14.0,
-                              resetsAt: Date().addingTimeInterval(3 * 3600)),
-        sevenDay: UsageWindow(utilization: 65.0,
-                              resetsAt: Date().addingTimeInterval(2 * 86400))
+        session: nil,
+        weekly: UsageWindow(utilization: 65.0,
+                            resetsAt: Date().addingTimeInterval(2 * 86400),
+                            duration: UsageStore.weeklyFallbackDuration)
     ))
+    return UsagePopover(store: store, settings: AppSettings(), onRefresh: {}, onQuit: {})
+}
+
+#Preview("Both windows — session limits reinstated") {
+    let store = UsageStore()
+    store.updateSnapshot(bothWindowsSnapshot())
     return UsagePopover(store: store, settings: AppSettings(), onRefresh: {}, onQuit: {})
 }
 
@@ -393,12 +426,7 @@ struct UsagePopover: View {
 
 #Preview("Network error with stale snapshot") {
     let store = UsageStore()
-    store.updateSnapshot(UsageSnapshot(
-        fiveHour: UsageWindow(utilization: 14.0,
-                              resetsAt: Date().addingTimeInterval(3 * 3600)),
-        sevenDay: UsageWindow(utilization: 65.0,
-                              resetsAt: Date().addingTimeInterval(2 * 86400))
-    ), at: Date().addingTimeInterval(-15 * 60))
+    store.updateSnapshot(bothWindowsSnapshot(), at: Date().addingTimeInterval(-15 * 60))
     store.recordError(.api(.network(underlying: URLError(.notConnectedToInternet))))
     return UsagePopover(store: store, settings: AppSettings(), onRefresh: {}, onQuit: {})
 }

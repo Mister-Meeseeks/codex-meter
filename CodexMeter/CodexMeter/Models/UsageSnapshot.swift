@@ -6,7 +6,9 @@ import Foundation
 /// — we only decode what v1 surfaces: the two rate-limit windows, sorted
 /// into slots by their reported length rather than by the positional
 /// `primary_window` / `secondary_window` keys they arrive in. See
-/// `classify(primary:secondary:)` for why.
+/// `classify(primary:secondary:)` for why. `CodexAPI` enriches the decoded
+/// snapshot with banked-reset details from the companion endpoint when any
+/// resets are available.
 ///
 /// Either slot may be `nil`: OpenAI publishes whichever windows currently
 /// apply to the account, and that set changes. As of 2026-07-27 only the
@@ -21,15 +23,24 @@ struct UsageSnapshot: Decodable, Equatable, Sendable {
     /// The long rolling window — 7d (`604800`) today.
     let weekly: UsageWindow?
 
+    /// Banked reset count and nearest expiry. `nil` when no reset is
+    /// available or the supplementary endpoint could not provide details.
+    let bankedResetInfo: BankedResetInfo?
+
     /// Windows this long or shorter are session windows; anything longer
     /// is the weekly bucket. 24h sits in the wide empty gap between the
     /// two families (5h vs 7d), so the split survives OpenAI retuning
     /// either window without us having to chase the exact value.
     static let sessionMaxDuration: TimeInterval = 24 * 3600
 
-    init(session: UsageWindow?, weekly: UsageWindow?) {
+    init(
+        session: UsageWindow?,
+        weekly: UsageWindow?,
+        bankedResetInfo: BankedResetInfo? = nil
+    ) {
         self.session = session
         self.weekly = weekly
+        self.bankedResetInfo = bankedResetInfo
     }
 
     subscript(window: TrackedWindow) -> UsageWindow? {
@@ -111,10 +122,12 @@ struct UsageSnapshot: Decodable, Equatable, Sendable {
         else {
             self.session = nil
             self.weekly = nil
+            self.bankedResetInfo = nil
             return
         }
         let primary = try rl.decodeIfPresent(UsageWindow.self, forKey: .primaryWindow)
         let secondary = try rl.decodeIfPresent(UsageWindow.self, forKey: .secondaryWindow)
         (self.session, self.weekly) = Self.classify(primary: primary, secondary: secondary)
+        self.bankedResetInfo = nil
     }
 }

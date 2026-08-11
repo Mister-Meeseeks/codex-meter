@@ -14,6 +14,8 @@ OpenAI publishes a **weekly** window (7d) and, when session limits are in force,
 
 These are stored in `UsageSnapshot` and updated on every successful poll.
 
+When available, `UsageSnapshot` also carries the number of banked resets and the earliest expiry reported by the supplementary reset-credit endpoint. This is display-only and does not participate in projection math.
+
 ## Reset countdown formatting
 
 The popover renders durations through `DurationFormatter`. Three variants exist; reset countdowns use `verbose`, the burnout-line "limits hitting in X" uses `coarse`, and any tight surface that needs the durations packed tight uses `compact`.

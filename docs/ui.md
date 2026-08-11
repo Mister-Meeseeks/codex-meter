@@ -105,6 +105,11 @@ The layout below shows both windows. With weekly only, the SESSION bar, the Sess
 │  On target. Maintain token spend.   │
 │                                     │
 │  ───────────────────────            │
+│  BANKED RESETS                     │
+│  2 Resets Left                     │
+│  Next Expiry in 4 days              │
+│                                     │
+│  ───────────────────────            │
 │                                     │
 │  Menubar  ◉ Session  ○ Weekly       │
 │  ☑ Show Usage in Menubar            │
@@ -163,6 +168,8 @@ Only published windows are evaluated, so with weekly alone the sentence reflects
 | Otherwise | (no sentence) | — |
 
 `X` is `secondsUntilReset − deadTime`, `Y` is dead time itself, both formatted via `DurationFormatter.coarse`. The status updates live via a 60s `TimelineView` so "limits hitting in X" stays current.
+
+When the usage response reports one or more banked resets and the reset-detail endpoint supplies an expiry, a separate `BANKED RESETS` section appears below Pacing with its own divider. It contains two centered footnote lines: `1 Reset Left` / `X Resets Left`, followed by `Next Expiry in <DurationFormatter.verbose>`. The entire section and its divider are absent when the available count is zero or details are unavailable. Its countdown updates every 60 seconds. The expiry line uses `criticalRed` when less than 24 hours remain; otherwise it uses the secondary text color.
 
 ### Menu-bar visibility controls
 

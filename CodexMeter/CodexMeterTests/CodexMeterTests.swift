@@ -203,6 +203,104 @@ struct UsageSnapshotDecodingTests {
     }
 }
 
+@Suite("Banked reset decoding")
+struct BankedResetDecodingTests {
+    @Test("Uses the API count and earliest available expiry")
+    func decodesEarliestAvailableExpiry() throws {
+        let json = #"""
+        {
+          "credits": [
+            {"status": "redeemed", "expires_at": "2026-08-01T12:00:00Z"},
+            {"status": "available", "expires_at": "2026-08-20T12:00:00Z"},
+            {"status": "available", "expires_at": "2026-08-12T17:45:56.252865Z"}
+          ],
+          "available_count": 2,
+          "total_earned_count": 3
+        }
+        """#
+
+        let info = try CodexAPI.decodeBankedResetInfo(from: Data(json.utf8))
+
+        #expect(info?.availableCount == 2)
+        let expectedExpiry = 1_786_556_756.252865
+        #expect(abs((info?.nextExpiry.timeIntervalSince1970 ?? 0) - expectedExpiry) < 0.001)
+    }
+
+    @Test("Zero available resets produces no display info")
+    func zeroAvailableResetsIsNil() throws {
+        let json = #"""
+        {"credits": [], "available_count": 0, "total_earned_count": 0}
+        """#
+
+        let info = try CodexAPI.decodeBankedResetInfo(from: Data(json.utf8))
+
+        #expect(info == nil)
+    }
+
+    @Test("Available reset without an expiry produces no display info")
+    func missingExpiryIsNil() throws {
+        let json = #"""
+        {"credits": [{"status": "available", "expires_at": null}], "available_count": 1}
+        """#
+
+        let info = try CodexAPI.decodeBankedResetInfo(from: Data(json.utf8))
+
+        #expect(info == nil)
+    }
+}
+
+@Suite("Banked reset presentation")
+struct BankedResetPresentationTests {
+    private let now = Date(timeIntervalSince1970: 1_786_000_000)
+
+    @Test("Uses the verbose countdown convention")
+    func verboseCountdown() {
+        let info = BankedResetInfo(
+            availableCount: 2,
+            nextExpiry: now.addingTimeInterval(4 * 86400)
+        )
+
+        let status = BankedResetStatus(info: info, now: now)
+
+        #expect(status.countText == "2 Resets Left")
+        #expect(status.expiryText == "Next Expiry in 4 days")
+        #expect(!status.isExpiringSoon)
+    }
+
+    @Test("Uses singular reset copy")
+    func singularResetCopy() {
+        let info = BankedResetInfo(
+            availableCount: 1,
+            nextExpiry: now.addingTimeInterval(4 * 86400)
+        )
+
+        let status = BankedResetStatus(info: info, now: now)
+
+        #expect(status.countText == "1 Reset Left")
+    }
+
+    @Test("Expiry is urgent only below 24 hours")
+    func urgentBelowTwentyFourHours() {
+        let atThreshold = BankedResetStatus(
+            info: BankedResetInfo(
+                availableCount: 1,
+                nextExpiry: now.addingTimeInterval(24 * 3600)
+            ),
+            now: now
+        )
+        let belowThreshold = BankedResetStatus(
+            info: BankedResetInfo(
+                availableCount: 1,
+                nextExpiry: now.addingTimeInterval(24 * 3600 - 1)
+            ),
+            now: now
+        )
+
+        #expect(!atThreshold.isExpiringSoon)
+        #expect(belowThreshold.isExpiringSoon)
+    }
+}
+
 @Suite("Committed fixtures")
 struct FixtureDecodingTests {
 

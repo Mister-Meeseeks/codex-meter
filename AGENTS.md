@@ -14,8 +14,8 @@ A user installs via Homebrew, launches once, and forever after has ambient aware
 - **Single signed binary.** `.dmg` distributed via Homebrew cask + GitHub Releases. No installers.
 - **Zero config on first run.** Reads Codex CLI's locally-cached OAuth token from `~/.codex/auth.json` (plaintext, mode 0600). No login UI, no settings to configure to start working. No keychain prompt — unlike claude-meter, Codex CLI doesn't encrypt its tokens, so there's nothing to decrypt. See `docs/auth.md`.
 - **Hard dependency on Codex CLI.** codex-meter is a passive consumer of Codex CLI's auth state. The CLI must be installed and the user must have run `codex login`. Token freshness is Codex CLI's job — it refreshes in the background and we just re-read the cached value.
-- **Brittle endpoint, by design.** The `wham/usage` endpoint is **undocumented** — it's the same one Codex CLI itself polls for `/status`. OpenAI may move or change it without notice. Parser is forward-compatible (unknown fields ignored); failures degrade gracefully with appropriate user-facing messages. See `docs/api.md`.
-- **No telemetry, no analytics.** Only network call is to `chatgpt.com/backend-api/wham/usage`. Treat user data accordingly.
+- **Brittle endpoints, by design.** The `wham/usage` and banked-reset endpoints are **undocumented** internal surfaces. OpenAI may move or change them without notice. Parsers are forward-compatible (unknown fields ignored); failures degrade gracefully with appropriate user-facing messages. See `docs/api.md`.
+- **No telemetry, no analytics.** Network calls are limited to `chatgpt.com/backend-api/wham/usage` and, only when the usage response reports a banked reset, `chatgpt.com/backend-api/wham/rate-limit-reset-credits`. Treat user data accordingly.
 - **Tiny footprint.** Idle RAM under 50MB. CPU under 0.1% idle. Slow polling cadence — 60s in all states. The endpoint rate-limits, so polling harder while the popover is open just trips the limiter sooner.
 - **Graceful degradation.** Network/API/auth failures show a clear error state — never a crash, never a misleading number.
 

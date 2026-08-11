@@ -1,10 +1,11 @@
-# API: `wham/usage`
+# API: usage and banked resets
 
-This document pins the empirically observed shape of the Codex usage endpoint and how `codex-meter` parses it. **The endpoint is undocumented** — it's the same one Codex CLI polls for its `/status` view. Re-verify after every Codex CLI version bump.
+This document pins the empirically observed shape of the Codex usage endpoints and how `codex-meter` parses them. **The endpoints are undocumented.** Re-verify after every Codex CLI version bump.
 
 ## Last verified
 
-- Date: 2026-07-27
+- Usage endpoint: 2026-07-27
+- Banked-reset endpoint: 2026-08-11
 - Probed via Codex CLI's cached access token (plan: `prolite`).
 - Saved fixtures (PII redacted):
   - `assets/fixtures/wham-usage.json` — current shape, weekly window only
@@ -77,7 +78,7 @@ Observed body (2026-07-27, PII redacted):
 }
 ```
 
-Deltas from the 2026-05-01 body: `secondary_window` is now `null`, `primary_window` carries the weekly window, `referral_beacon` is gone, and `rate_limit_reset_credits` is new. Only the window change required code; the other two are absorbed by ignore-unknown-fields decoding.
+Deltas from the 2026-05-01 body: `secondary_window` is now `null`, `primary_window` carries the weekly window, `referral_beacon` is gone, and `rate_limit_reset_credits` is new. The window change required parser work; the reset summary now gates the optional detail request.
 
 ## Field reference
 
@@ -122,7 +123,34 @@ Both slots are optional and the app treats every combination as normal: session-
 | `spend_control` | User-set spend cap | Ignore |
 | `rate_limit_reached_type` | Categorical reason if a limit is hit | Ignore |
 | `promo`, `referral_beacon` | Marketing surfaces | Ignore (`referral_beacon` absent as of 2026-07-27) |
-| `rate_limit_reset_credits` | Credits that reset a hit limit early | Ignore |
+| `rate_limit_reset_credits` | Banked-reset summary: `available_count` and `applicable_available_count` | Use `available_count` to decide whether reset details need fetching |
+
+## Banked-reset details
+
+When `rate_limit_reset_credits.available_count` is greater than zero, Codex Meter also calls:
+
+```
+GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits
+```
+
+It uses the same `Accept`, bearer authorization, and user-agent headers as the usage request. This endpoint is supplementary: any network, HTTP, or decoding failure is ignored so current usage windows remain available.
+
+Observed response (2026-08-11, identity fields omitted):
+
+```json
+{
+  "credits": [
+    {
+      "status": "available",
+      "expires_at": "2026-08-12T17:45:56.252865Z"
+    }
+  ],
+  "available_count": 1,
+  "total_earned_count": 0
+}
+```
+
+Codex Meter displays `available_count` and the earliest `expires_at` among credits whose `status` is `available`. If the count is zero, or no available credit has a parseable expiry, it displays no banked-reset section. ISO-8601 timestamps with or without fractional seconds are accepted.
 
 ## Edge cases the parser must handle
 
@@ -159,7 +187,7 @@ struct UsageSnapshot: Decodable {
 }
 ```
 
-- Decode only the three fields we use. All other keys are silently ignored — free forward-compatibility.
+- `UsageSnapshot` decodes only the three fields used for each rate-limit window. A separate lightweight envelope decodes `rate_limit_reset_credits.available_count`; all other keys are silently ignored.
 - `UsageWindow` does its own date decoding (unix seconds → `Date`), so the top-level `JSONDecoder` is plain — no custom strategy required.
 - Slot names are roles, not durations. `session` is whatever short window is published; `weekly` is the long one. Don't reintroduce duration-based names — that's what made the last breakage confusing.
 
@@ -177,4 +205,4 @@ If the shape changes meaningfully (renamed fields, different units, different da
 
 ## Stability disclaimer
 
-Because the endpoint is undocumented and the CLI's internal surface, OpenAI may move it, rename fields, or break the response shape without notice. codex-meter handles drift gracefully — unknown fields are ignored, missing windows decode to nil, and HTTP failures degrade with the appropriate user-facing message. But the app's correctness floor is "we use what the official CLI uses; if OpenAI changes that, we follow."
+Because these endpoints are undocumented internal surfaces, OpenAI may move them, rename fields, or break their response shapes without notice. codex-meter handles drift gracefully — unknown fields are ignored, missing windows decode to nil, and HTTP failures degrade appropriately. Failure of the supplementary reset-detail endpoint merely hides the banked-reset section; it never invalidates current usage data.

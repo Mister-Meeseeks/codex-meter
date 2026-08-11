@@ -9,6 +9,7 @@ CodexMeter/
   CodexMeterApp.swift           # @main, MenuBarExtra + Settings scene wiring
   Models/
     UsageSnapshot.swift         # struct: session + weekly windows, sorted by reported length
+    BankedResetInfo.swift       # struct: available reset count + earliest expiry
     UsageWindow.swift           # struct: utilization, resetsAt, duration
     Projection.swift            # struct: paceRatio + outcome (onPace/over/under)
     DisplayMode.swift           # enum TrackedWindow { session, weekly } + label/other/migration
@@ -66,7 +67,7 @@ One cadence — 60s — in every state. The poller has no notion of whether the 
 **Pure helpers** (not actors) for the rest:
 - `UsageProvider` — protocol with one method, `fetchUsage() async throws -> UsageSnapshot`. Single concrete implementation today (`CodexProvider`); the protocol exists so test fakes (and any future provider) swap in without touching the poller.
 - `CodexProvider` — combines token reading and HTTP fetch behind one entry point. Throws `TokenReader.ReadError` on auth failures and `CodexAPI.APIError` on fetch failures so the poller can surface different user-facing messages.
-- `CodexAPI` — given a token, return a parsed `UsageSnapshot` or throw a typed `APIError`.
+- `CodexAPI` — given a token, return a parsed `UsageSnapshot` or throw a typed `APIError`. When `/wham/usage` reports a positive banked-reset count, enriches the snapshot from the supplementary reset-credit endpoint; failure of that optional call leaves normal usage intact.
 - `TokenReader` — reads Codex CLI's locally-cached OAuth token from `~/.codex/auth.json`; see `docs/auth.md` for the protocol.
 - `Projector` — given a `UsageWindow` and the window's total duration, return a `Projection` (or `nil` when inputs can't yield a meaningful pace ratio).
 

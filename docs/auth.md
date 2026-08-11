@@ -1,6 +1,6 @@
 # Auth: reading Codex CLI's locally-cached OAuth token
 
-codex-meter is a passive read-only consumer of Codex CLI's existing OAuth state. We don't run an OAuth flow, don't register a third-party client, and don't store our own tokens. On every poll we read the bearer token Codex CLI has cached on disk and use it for one HTTP call to `wham/usage`.
+codex-meter is a passive read-only consumer of Codex CLI's existing OAuth state. We don't run an OAuth flow, don't register a third-party client, and don't store our own tokens. On every poll we read the bearer token Codex CLI has cached on disk and use it for `wham/usage`, plus a supplementary reset-detail call only when the usage response reports a banked reset.
 
 This is dramatically simpler than the claude-meter equivalent: Claude desktop encrypts its tokens under the macOS keychain (Chromium Safe Storage scheme, AES-128-CBC, PBKDF2-HMAC-SHA1). Codex CLI just writes plaintext JSON. There is no decryption to perform, no keychain prompt on first launch, no ACL gymnastics.
 
@@ -57,7 +57,7 @@ The `parseTokenFromAuthJSON(_:)` helper in `Services/TokenReader.swift` is a pur
 
 ## Critical implementation rule
 
-**Re-read the file on every poll. Never cache the access token across HTTP calls.**
+**Re-read the file on every poll. Never cache the access token across polls.** The token read for a poll may be used for the normal `wham/usage` request and, when that response reports an available banked reset, the immediately-following reset-detail request.
 
 Codex CLI rotates the access token in place: when it refreshes, it writes new bytes to `auth.json`, and we want our next poll to pick those up. The file read is microseconds; there's no perf reason to cache.
 
@@ -94,7 +94,7 @@ The `probe-codex-usage-api.sh` script does a more thorough sweep — it captures
 
 ## Policy context
 
-The `wham/usage` endpoint is **undocumented** — it's the same one Codex CLI itself polls for its `/status` view (see openai/codex#10869). OpenAI has not published a stable API for usage queries; feature requests for a headless `codex status --json` are open and unmerged (openai/codex#10233, openai/codex#15281).
+The `wham/usage` and reset-detail endpoints are **undocumented** internal surfaces; `wham/usage` is the one Codex CLI polls for its `/status` view (see openai/codex#10869). OpenAI has not published a stable API for usage queries; feature requests for a headless `codex status --json` are open and unmerged (openai/codex#10233, openai/codex#15281).
 
 This means the endpoint and its response shape can change without notice. codex-meter's parser is forward-compatible (unknown fields are silently ignored), and HTTP errors degrade gracefully — a 404 surfaces "Codex Meter needs an update."
 

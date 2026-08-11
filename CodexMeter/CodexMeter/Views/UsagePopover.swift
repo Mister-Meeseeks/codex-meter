@@ -1,5 +1,19 @@
 import SwiftUI
 
+struct BankedResetStatus {
+    let countText: String
+    let expiryText: String
+    let isExpiringSoon: Bool
+
+    init(info: BankedResetInfo, now: Date) {
+        let secondsUntilExpiry = max(0, info.nextExpiry.timeIntervalSince(now))
+        let noun = info.availableCount == 1 ? "Reset" : "Resets"
+        self.countText = "\(info.availableCount) \(noun) Left"
+        self.expiryText = "Next Expiry in \(DurationFormatter.verbose(secondsUntilExpiry))"
+        self.isExpiringSoon = secondsUntilExpiry < 24 * 3600
+    }
+}
+
 /// The click-to-reveal panel shown when the user is signed in. Observes
 /// `UsageStore` directly. The owner of the store is responsible for
 /// passing in callbacks for refresh / quit / sign-out actions.
@@ -47,6 +61,16 @@ struct UsagePopover: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity)
                     }
+                }
+            }
+
+            if let resetInfo = displaySnapshot?.bankedResetInfo,
+               resetInfo.availableCount > 0 {
+                Divider()
+
+                sectionTitle("BANKED RESETS")
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    bankedResetStatus(resetInfo, now: context.date)
                 }
             }
 
@@ -136,6 +160,20 @@ struct UsagePopover: View {
         Text(text)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder
+    private func bankedResetStatus(_ info: BankedResetInfo, now: Date) -> some View {
+        let status = BankedResetStatus(info: info, now: now)
+        VStack(spacing: 4) {
+            Text(status.countText)
+                .foregroundStyle(.primary)
+            Text(status.expiryText)
+                .foregroundStyle(status.isExpiringSoon ? Color.criticalRed : .secondary)
+        }
+        .font(.footnote)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Menu-bar visibility checkboxes
@@ -408,7 +446,11 @@ private func bothWindowsSnapshot() -> UsageSnapshot {
         session: nil,
         weekly: UsageWindow(utilization: 65.0,
                             resetsAt: Date().addingTimeInterval(2 * 86400),
-                            duration: UsageStore.weeklyFallbackDuration)
+                            duration: UsageStore.weeklyFallbackDuration),
+        bankedResetInfo: BankedResetInfo(
+            availableCount: 1,
+            nextExpiry: Date().addingTimeInterval(20 * 3600)
+        )
     ))
     return UsagePopover(store: store, settings: AppSettings(), onRefresh: {}, onQuit: {})
 }

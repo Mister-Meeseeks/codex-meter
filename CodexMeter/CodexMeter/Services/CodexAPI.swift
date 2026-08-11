@@ -1,6 +1,6 @@
 import Foundation
 
-/// HTTP client for Codex's `wham/usage` endpoint.
+/// HTTP client for Codex's `wham/usage` and banked-reset endpoints.
 ///
 /// The endpoint is **undocumented** — it's the same one Codex CLI polls
 /// for its `/status` view (see openai/codex#10869). Treat all schema
@@ -8,6 +8,9 @@ import Foundation
 /// for the response shape this client decodes.
 enum CodexAPI {
     static let usageURL = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
+    static let resetCreditsURL = usageURL
+        .deletingLastPathComponent()
+        .appending(path: "rate-limit-reset-credits")
 
     static var userAgent: String {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0"
@@ -17,6 +20,42 @@ enum CodexAPI {
     /// Plain `JSONDecoder` — `UsageWindow.init(from:)` handles its own
     /// date conversion (unix seconds), so no custom strategy is required.
     static let decoder = JSONDecoder()
+
+    private struct UsageResetCredits: Decodable {
+        let availableCount: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case availableCount = "available_count"
+        }
+    }
+
+    private struct UsageResetCreditsEnvelope: Decodable {
+        let rateLimitResetCredits: UsageResetCredits?
+
+        private enum CodingKeys: String, CodingKey {
+            case rateLimitResetCredits = "rate_limit_reset_credits"
+        }
+    }
+
+    private struct ResetCredit: Decodable {
+        let status: String
+        let expiresAt: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case status
+            case expiresAt = "expires_at"
+        }
+    }
+
+    private struct ResetCreditsEnvelope: Decodable {
+        let credits: [ResetCredit]
+        let availableCount: Int
+
+        private enum CodingKeys: String, CodingKey {
+            case credits
+            case availableCount = "available_count"
+        }
+    }
 
     enum APIError: Error {
         /// 401 — token rejected. Caller should surface "run codex login".
@@ -79,7 +118,27 @@ enum CodexAPI {
         switch http.statusCode {
         case 200:
             do {
-                return try decoder.decode(UsageSnapshot.self, from: data)
+                let snapshot = try decoder.decode(UsageSnapshot.self, from: data)
+                let count = (try? decoder.decode(
+                    UsageResetCreditsEnvelope.self,
+                    from: data
+                ))?.rateLimitResetCredits?.availableCount ?? 0
+                guard count > 0 else { return snapshot }
+
+                // Reset details are supplementary. A failure here must not
+                // discard otherwise-current usage data or put the app into
+                // an error state.
+                guard let bankedResetInfo = try? await fetchBankedResetInfo(
+                    token: token,
+                    session: session
+                ) else {
+                    return snapshot
+                }
+                return UsageSnapshot(
+                    session: snapshot.session,
+                    weekly: snapshot.weekly,
+                    bankedResetInfo: bankedResetInfo
+                )
             } catch {
                 throw APIError.decoding(underlying: error)
             }
@@ -99,5 +158,47 @@ enum CodexAPI {
                 body: String(decoding: data, as: UTF8.self)
             )
         }
+    }
+
+    private static func fetchBankedResetInfo(
+        token: String,
+        session: URLSession
+    ) async throws -> BankedResetInfo? {
+        var request = URLRequest(url: resetCreditsURL)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            return nil
+        }
+        return try decodeBankedResetInfo(from: data)
+    }
+
+    static func decodeBankedResetInfo(from data: Data) throws -> BankedResetInfo? {
+        let response = try decoder.decode(ResetCreditsEnvelope.self, from: data)
+        guard response.availableCount > 0 else { return nil }
+
+        let expiries = response.credits
+            .filter { $0.status == "available" }
+            .compactMap(\.expiresAt)
+            .compactMap(parseISO8601Date)
+        guard let nextExpiry = expiries.min() else { return nil }
+        return BankedResetInfo(
+            availableCount: response.availableCount,
+            nextExpiry: nextExpiry
+        )
+    }
+
+    private static func parseISO8601Date(_ value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) { return date }
+
+        let wholeSeconds = ISO8601DateFormatter()
+        wholeSeconds.formatOptions = [.withInternetDateTime]
+        return wholeSeconds.date(from: value)
     }
 }

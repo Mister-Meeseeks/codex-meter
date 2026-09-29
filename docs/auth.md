@@ -44,8 +44,11 @@ We prefer `tokens.access_token`. `OPENAI_API_KEY` is a convenience alias that ex
 3. Try `tokens.access_token` (string, non-empty) — return it.
 4. Fall back to top-level `OPENAI_API_KEY` (string, non-empty) — return it.
 5. Otherwise throw `noUsableToken` (Codex CLI not signed in) or `authFileMalformed` (schema unrecognized).
+6. Alongside `tokens.access_token`, take `tokens.account_id` if it's a non-empty string. It's optional: when absent (including on the `OPENAI_API_KEY` path) requests omit the `chatgpt-account-id` header rather than failing.
 
-The `parseTokenFromAuthJSON(_:)` helper in `Services/TokenReader.swift` is a pure function so it's unit-tested directly. The `currentToken()` entry point handles the file IO and surfaces typed errors:
+The account ID matters: without `chatgpt-account-id`, `wham/usage` reported ~2x the `used_percent` that Codex CLI `/status` and chatgpt.com showed for the same weekly window (observed 2026-09-29, Pro plan — 73% vs 36%). Codex CLI sends the header; so do we.
+
+The `parseCredentialsFromAuthJSON(_:)` helper in `Services/TokenReader.swift` is a pure function so it's unit-tested directly. The `currentCredentials()` entry point handles the file IO and surfaces typed errors:
 
 | Symptom | Cause | User-facing message |
 |---|---|---|

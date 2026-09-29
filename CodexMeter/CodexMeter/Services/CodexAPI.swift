@@ -96,12 +96,30 @@ enum CodexAPI {
         return nil
     }
 
-    static func fetchUsage(token: String, session: URLSession = .shared) async throws -> UsageSnapshot {
-        var request = URLRequest(url: usageURL)
+    /// Builds an authenticated GET. `chatgpt-account-id` scopes the
+    /// response to the signed-in account — omitting it made `wham/usage`
+    /// report ~2x the `used_percent` that Codex CLI and chatgpt.com show
+    /// (observed 2026-09-29). See `docs/api.md`.
+    static func makeRequest(
+        url: URL,
+        credentials: TokenReader.Credentials
+    ) -> URLRequest {
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        if let accountID = credentials.accountID {
+            request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+        }
+        return request
+    }
+
+    static func fetchUsage(
+        credentials: TokenReader.Credentials,
+        session: URLSession = .shared
+    ) async throws -> UsageSnapshot {
+        let request = makeRequest(url: usageURL, credentials: credentials)
 
         let data: Data
         let response: URLResponse
@@ -129,7 +147,7 @@ enum CodexAPI {
                 // discard otherwise-current usage data or put the app into
                 // an error state.
                 guard let bankedResetInfo = try? await fetchBankedResetInfo(
-                    token: token,
+                    credentials: credentials,
                     session: session
                 ) else {
                     return snapshot
@@ -161,14 +179,10 @@ enum CodexAPI {
     }
 
     private static func fetchBankedResetInfo(
-        token: String,
+        credentials: TokenReader.Credentials,
         session: URLSession
     ) async throws -> BankedResetInfo? {
-        var request = URLRequest(url: resetCreditsURL)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        let request = makeRequest(url: resetCreditsURL, credentials: credentials)
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

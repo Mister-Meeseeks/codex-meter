@@ -97,7 +97,7 @@ If a file needs to import something it shouldn't (e.g. a View importing `URLSess
 
 ## Testing strategy
 
-- **Unit tests:** `CodexAPI` parsers (the most likely thing to break when the endpoint shifts), window classification (`UsageSnapshot.classify` — which windows exist and which slot they land in is the part OpenAI actually changes), `TokenReader.parseTokenFromAuthJSON` (auth.json schema), `Projector` math (pace ratio, on-pace band, dead-time, unused-fraction), `UsagePoller` interval/backoff logic against a fake `UsageProvider`.
+- **Unit tests:** `CodexAPI` parsers (the most likely thing to break when the endpoint shifts), window classification (`UsageSnapshot.classify` — which windows exist and which slot they land in is the part OpenAI actually changes), `TokenReader.parseCredentialsFromAuthJSON` (auth.json schema), `Projector` math (pace ratio, on-pace band, dead-time, unused-fraction), `UsagePoller` interval/backoff logic against a fake `UsageProvider`.
 - **Snapshot tests:** view `#Preview` blocks cover the common states (low/medium/high utilization, no data, error). When the app gets a more formal snapshot pipeline, expand from there.
 - **Manual smoke tests:** cold launch, auth file missing, network offline, 401, 500, both windows null, individual windows null. The hidden ⌥⌘⇧D debug panel in the settings sheet lets you preview every visual state without burning real quota, including the "API publishes a session window" toggle for the one-window vs. two-window popover layouts.
 

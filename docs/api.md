@@ -26,6 +26,9 @@ GET https://chatgpt.com/backend-api/wham/usage
 | `Accept` | `application/json` |
 | `Authorization` | `Bearer <access-token>` |
 | `User-Agent` | `codex-meter/<version> (macOS)` |
+| `chatgpt-account-id` | `tokens.account_id` from `~/.codex/auth.json`, when present |
+
+**Send `chatgpt-account-id`.** Without it the server resolves its own account context, and on 2026-09-29 that returned `used_percent: 73` while Codex CLI `/status`, chatgpt.com, and a request carrying the header all showed 36 for the same window (`reset_at` identical). Both endpoints get the header.
 
 No `Content-Type` (no body), no beta-channel header. The bearer is `tokens.access_token` from `~/.codex/auth.json`; see `docs/auth.md`.
 

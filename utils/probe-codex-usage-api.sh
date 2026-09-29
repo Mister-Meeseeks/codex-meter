@@ -15,6 +15,11 @@ FIXTURE_DIR="$REPO_ROOT/assets/fixtures"
 FIXTURE_PATH="$FIXTURE_DIR/wham-usage.json"
 
 TOKEN="$("$HERE/extract-codex-token.sh")"
+# Same account scoping the app sends; without it used_percent can differ
+# from what Codex CLI shows. See docs/api.md.
+ACCOUNT_ID="$(jq -r '.tokens.account_id // empty' "${CODEX_AUTH_PATH:-$HOME/.codex/auth.json}")"
+ACCOUNT_HEADER=()
+[[ -n "$ACCOUNT_ID" ]] && ACCOUNT_HEADER=(-H "chatgpt-account-id: $ACCOUNT_ID")
 
 mkdir -p "$FIXTURE_DIR"
 
@@ -25,6 +30,7 @@ HTTP_STATUS="$(
         -H "Accept: application/json" \
         -H "Authorization: Bearer $TOKEN" \
         -H "User-Agent: codex-meter-probe/0.0 (macOS)" \
+        ${ACCOUNT_HEADER[@]+"${ACCOUNT_HEADER[@]}"} \
         "https://chatgpt.com/backend-api/wham/usage"
 )"
 

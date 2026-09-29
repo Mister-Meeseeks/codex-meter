@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads Codex CLI's locally-cached OAuth bearer token.
+/// Reads Codex CLI's locally-cached OAuth bearer token and account ID.
 ///
 /// Codex CLI stores its OAuth state in plaintext at `~/.codex/auth.json`
 /// (mode 0600). There is no decryption to perform — unlike Claude desktop,
@@ -27,11 +27,23 @@ enum TokenReader {
         case noUsableToken
     }
 
+    /// What a poll needs from `auth.json`: the bearer and, when present,
+    /// the account it belongs to.
+    struct Credentials: Equatable, Sendable {
+        let accessToken: String
+        /// `tokens.account_id`. Sent as `chatgpt-account-id` so
+        /// `wham/usage` reports the same account context Codex CLI and
+        /// the web UI see — without it the server picks its own context
+        /// and has reported roughly double the real `used_percent`.
+        /// `nil` on the `OPENAI_API_KEY` fallback path, which has none.
+        let accountID: String?
+    }
+
     nonisolated static let authFileRelativePath = ".codex/auth.json"
 
     /// Full happy path. Throws a typed `ReadError` on any failure so callers
     /// can pick the right user-facing message.
-    nonisolated static func currentToken() throws -> String {
+    nonisolated static func currentCredentials() throws -> Credentials {
         let path = (NSHomeDirectory() as NSString)
             .appendingPathComponent(authFileRelativePath)
         guard FileManager.default.fileExists(atPath: path) else {
@@ -43,11 +55,11 @@ enum TokenReader {
         } catch {
             throw ReadError.authFileUnreadable
         }
-        return try parseTokenFromAuthJSON(data)
+        return try parseCredentialsFromAuthJSON(data)
     }
 
-    /// Pure parser, unit tested. Extracts the bearer token from the
-    /// auth.json contents.
+    /// Pure parser, unit tested. Extracts the bearer token and account ID
+    /// from the auth.json contents.
     ///
     /// Observed schema (Codex CLI, 2026-04-26):
     /// ```
@@ -66,8 +78,9 @@ enum TokenReader {
     /// alias that may lag during refreshes. Token expiry isn't surfaced in
     /// this file (Codex CLI rotates in place), so we don't filter on it; a
     /// stale token surfaces as HTTP 401 from the API and the user-facing
-    /// message tells them to run `codex login`.
-    nonisolated static func parseTokenFromAuthJSON(_ data: Data) throws -> String {
+    /// message tells them to run `codex login`. An empty or missing
+    /// `account_id` is not an error — the request just omits the header.
+    nonisolated static func parseCredentialsFromAuthJSON(_ data: Data) throws -> Credentials {
         guard
             let parsed = try? JSONSerialization.jsonObject(with: data),
             let dict = parsed as? [String: Any]
@@ -77,11 +90,12 @@ enum TokenReader {
         if let tokens = dict["tokens"] as? [String: Any],
            let access = tokens["access_token"] as? String {
             guard !access.isEmpty else { throw ReadError.noUsableToken }
-            return access
+            let accountID = (tokens["account_id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return Credentials(accessToken: access, accountID: accountID)
         }
         if let topLevel = dict["OPENAI_API_KEY"] as? String {
             guard !topLevel.isEmpty else { throw ReadError.noUsableToken }
-            return topLevel
+            return Credentials(accessToken: topLevel, accountID: nil)
         }
         throw ReadError.authFileMalformed
     }
